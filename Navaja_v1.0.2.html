@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#00c3ff">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NAVAJA</title>
+
+<style>
+body{
+    margin:0;
+    background:#0b0b0b;
+    font-family:Arial, sans-serif;
+    color:white;
+}
+
+.wrapper{
+    display:flex;
+    padding:20px;
+}
+
+.left{
+    width:70%;
+    text-align:center;
+}
+
+.right{
+    width:30%;
+    background:#111;
+    padding:15px;
+    border-radius:10px;
+    margin-left:20px;
+    overflow:auto;
+    max-height:90vh;
+}
+
+input{
+    width:100%;
+    padding:8px;
+    margin-bottom:10px;
+    background:#1e1e1e;
+    border:none;
+    color:white;
+    border-radius:6px;
+}
+
+select{
+    padding:8px 12px;
+    background:#1e1e1e;
+    color:white;
+    border:none;
+    margin:5px;
+}
+
+.scale-box{
+    margin-top:10px;
+    background:#111;
+    padding:10px;
+    border-radius:10px;
+    font-weight:bold;
+}
+
+#circle{
+    position:relative;
+    width:500px;
+    height:500px;
+    margin:20px auto;
+    border-radius:50%;
+}
+
+.note{
+    position:absolute;
+    width:65px;
+    height:65px;
+    background:#222;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transform:translate(-50%, -50%);
+    opacity:0.2;
+    transition:0.3s;
+}
+
+.note.scale-active{ background:#ff3c3c; opacity:1; }
+.note.tonic{ background:#00c3ff; opacity:1; font-weight:bold; }
+.note.chord-active{ background:#00ff88 !important; opacity:1; }
+
+.chord-panel{
+    display:flex;
+    gap:20px;
+    margin-top:15px;
+}
+
+.column{
+    width:50%;
+    background:#111;
+    padding:15px;
+    border-radius:10px;
+    text-align:left;
+    max-height:350px;
+    overflow:auto;
+}
+
+.chord{
+    cursor:pointer;
+    padding:6px;
+    border-radius:6px;
+    margin-bottom:6px;
+}
+
+.chord:hover{ background:#222; }
+
+.genre{ margin-bottom:20px; }
+.genre h4{ color:#00c3ff; margin-bottom:5px; }
+
+.builder{
+    margin-top:15px;
+    background:#111;
+    padding:10px;
+    border-radius:10px;
+}
+
+button{
+    margin-top:10px;
+    padding:6px 10px;
+    background:#00c3ff;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+    margin-right:5px;
+}
+
+.analysisBox{
+    margin-top:10px;
+    padding:10px;
+    background:#0f0f0f;
+    border-radius:8px;
+    font-size:14px;
+}
+
+.analysisBox span{
+    display:block;
+    margin-bottom:4px;
+}
+
+@media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea {
+        position:absolute;
+        left:0;
+        top:0;
+        width:100%;
+        background:white;
+        color:black;
+        padding:40px;
+        font-size:20px;
+    }
+}
+</style>
+</head>
+<body>
+
+<div class="wrapper">
+
+<div class="left">
+<h4>Dioalex Music Tools</h4>
+<h1>NAVAJA</h1><h5>v1.0</h5>
+
+<select id="keySelect"></select>
+
+<select id="modeSelect">
+<option value="major">Mayor</option>
+<option value="minor">Menor Natural</option>
+<option value="harmonic">Menor Armónica</option>
+<option value="melodic">Menor Melódica</option>
+</select>
+
+<div class="scale-box" id="scaleNotes"></div>
+<div id="circle"></div>
+
+<div class="chord-panel">
+<div class="column">
+<h3>Triadas</h3>
+<div id="triads"></div>
+</div>
+<div class="column">
+<h3>7mas</h3>
+<div id="sevenths"></div>
+</div>
+</div>
+</div>
+
+<div class="right">
+
+<h3>🔥 Progresiones Urbanas</h3>
+<button onclick="regenerateProgressions()">🎲 Inspirar</button>
+<div id="progressions"></div>
+
+<div class="builder">
+
+<input type="text" id="songTitle" placeholder="Nombre de la canción...">
+
+<h3>Construye tu Progresión:</h3>
+
+<div id="printArea">
+<h1 id="printTitle"></h1>
+<p id="printScale"></p>
+<p id="printStyle"></p>
+<p id="printMood"></p>
+<hr>
+<h2>Progresión</h2>
+<div id="printProgression"></div>
+</div>
+
+<button onclick="clearProgression()">Limpiar</button>
+<button onclick="savePDF()">Guardar PDF</button>
+
+<div class="analysisBox" id="analysisBox">
+<span id="styleResult"></span>
+<span id="percentageResult"></span>
+<span id="moodResult"></span>
+</div>
+
+</div>
+</div>
+</div>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function(){
+
+const circleNotes=["C","G","D","A","E","B","F#","C#","Ab","Eb","Bb","F"];
+const chromatic=["C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"];
+
+const patterns={
+major:[0,2,4,5,7,9,11],
+minor:[0,2,3,5,7,8,10],
+harmonic:[0,2,3,5,7,8,11],
+melodic:[0,2,3,5,7,9,11]
+};
+
+let userProgression=[];
+let currentChordNames=[];
+let currentMode="major";
+
+const keySelect=document.getElementById("keySelect");
+const modeSelect=document.getElementById("modeSelect");
+const circle=document.getElementById("circle");
+
+chromatic.forEach(note=>{
+let option=document.createElement("option");
+option.value=note;
+option.textContent=note;
+keySelect.appendChild(option);
+});
+
+function buildScale(root,mode){
+let rootIndex=chromatic.indexOf(root);
+return patterns[mode].map(i=>chromatic[(rootIndex+i)%12]);
+}
+
+function detectTriadQuality(notes){
+let rootIndex=chromatic.indexOf(notes[0]);
+let third=(chromatic.indexOf(notes[1])-rootIndex+12)%12;
+let fifth=(chromatic.indexOf(notes[2])-rootIndex+12)%12;
+if(third===4&&fifth===7)return "";
+if(third===3&&fifth===7)return "m";
+if(third===3&&fifth===6)return "°";
+return "";
+}
+
+function buildChord(scale,degree,size){
+let chord=[];
+for(let i=0;i<size;i++){
+chord.push(scale[(degree+i*2)%7]);
+}
+return chord;
+}
+
+function drawCircle(root,mode){
+circle.innerHTML="";
+const radius=200;
+const center=250;
+let scale=buildScale(root,mode);
+
+circleNotes.forEach((note,index)=>{
+const angle=(index/12)*(2*Math.PI)-Math.PI/2;
+const x=center+radius*Math.cos(angle);
+const y=center+radius*Math.sin(angle);
+
+const div=document.createElement("div");
+div.classList.add("note");
+div.style.left=x+"px";
+div.style.top=y+"px";
+div.textContent=note;
+
+if(note===root)div.classList.add("tonic");
+else if(scale.includes(note))div.classList.add("scale-active");
+
+circle.appendChild(div);
+});
+}
+
+function highlightChord(chordNotes){
+document.querySelectorAll(".note").forEach(n=>{
+n.classList.remove("chord-active");
+if(chordNotes.includes(n.textContent)){
+n.classList.add("chord-active");
+}
+});
+}
+
+function addToProgression(name){
+userProgression.push(name);
+document.getElementById("printProgression").innerText=userProgression.join(" ➜ ");
+detectCurrentStyle();
+}
+
+function clearProgression(){
+userProgression=[];
+document.getElementById("printProgression").innerText="";
+document.getElementById("analysisBox").style.display="none";
+}
+
+function savePDF(){
+
+const title=document.getElementById("songTitle").value||"Sin título";
+const scale=keySelect.value+" "+modeSelect.options[modeSelect.selectedIndex].text;
+
+const style=document.getElementById("styleResult").innerText||"Sin detección";
+const percentage=document.getElementById("percentageResult").innerText||"";
+const mood=document.getElementById("moodResult").innerText||"";
+
+document.getElementById("printTitle").innerText=title;
+document.getElementById("printScale").innerText="Escala: "+scale;
+document.getElementById("printStyle").innerText=style+" | "+percentage;
+document.getElementById("printMood").innerText=mood;
+
+window.print();
+}
+
+window.clearProgression=clearProgression;
+window.highlightChord=highlightChord;
+window.addToProgression=addToProgression;
+window.savePDF=savePDF;
+
+function analyzeStyle(prog){
+let score={Reggaeton:0,Trap:0,Afrobeat:0,Rap:0,Hiphop:0};
+let degrees=prog.map(ch=>currentChordNames.indexOf(ch));
+if(degrees.includes(5))score.Reggaeton+=2;
+if(degrees.length<=3)score.Trap+=2;
+if(degrees.length===3)score.Afrobeat+=2;
+if(degrees.includes(1))score.Hiphop+=1;
+return score;
+}
+
+function calculateMood(prog){
+if(currentMode==="minor")return "🎭 Oscuro / Melancólico";
+if(prog.length<=3)return "🔥 Comercial / Minimalista";
+return "☀️ Alegre / Estable";
+}
+
+function detectCurrentStyle(){
+if(userProgression.length<2){
+document.getElementById("analysisBox").style.display="none";
+return;
+}
+document.getElementById("analysisBox").style.display="block";
+let result=analyzeStyle(userProgression);
+let total=Object.values(result).reduce((a,b)=>a+b,0);
+let best=Object.keys(result).reduce((a,b)=>result[a]>result[b]?a:b);
+let percentage=total>0?Math.round((result[best]/total)*100):0;
+
+document.getElementById("styleResult").innerText="🎧 Estilo Detectado: "+best;
+document.getElementById("percentageResult").innerText="📊 Coincidencia: "+percentage+"%";
+document.getElementById("moodResult").innerText="🎹 Mood: "+calculateMood(userProgression);
+}
+
+function update(){
+let root=keySelect.value;
+let mode=modeSelect.value;
+currentMode=mode;
+let scale=buildScale(root,mode);
+drawCircle(root,mode);
+
+document.getElementById("scaleNotes").innerText="Notas de la escala: "+scale.join(" - ");
+
+let triHTML="";
+currentChordNames=[];
+
+for(let i=0;i<7;i++){
+let tri=buildChord(scale,i,3);
+let quality=detectTriadQuality(tri);
+let name=scale[i]+quality;
+currentChordNames.push(name);
+triHTML+=`<div class="chord" onclick='highlightChord(${JSON.stringify(tri)}); addToProgression("${name}")'>
+${name} → ${tri.join(" - ")}</div>`;
+}
+document.getElementById("triads").innerHTML=triHTML;
+
+let sevHTML="";
+for(let i=0;i<7;i++){
+let sev=buildChord(scale,i,4);
+let quality=detectTriadQuality(sev.slice(0,3));
+let name=scale[i]+quality+"7";
+sevHTML+=`<div class="chord" onclick='highlightChord(${JSON.stringify(sev)}); addToProgression("${name}")'>
+${name} → ${sev.join(" - ")}</div>`;
+}
+document.getElementById("sevenths").innerHTML=sevHTML;
+
+regenerateProgressions();
+}
+
+function regenerateProgressions(){
+const genres=["Reggaeton","Afrobeat","Trap","Rap","Hiphop"];
+let html="";
+genres.forEach(g=>{
+let prog=generateProgression(currentMode,4);
+let chords=prog.map(d=>currentChordNames[d]);
+html+=`<div class="genre"><h4>${g}</h4>${chords.join(" - ")}</div>`;
+});
+document.getElementById("progressions").innerHTML=html;
+}
+
+function generateProgression(mode,length){
+let arr=[];
+for(let i=0;i<length;i++){
+arr.push(Math.floor(Math.random()*7));
+}
+return arr;
+}
+
+keySelect.addEventListener("change",update);
+modeSelect.addEventListener("change",update);
+
+keySelect.value="C";
+modeSelect.value="major";
+update();
+
+});
+
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js")
+    .then(() => console.log("PWA lista"))
+    .catch(err => console.log("Error PWA:", err));
+}
+</script>
+
+</body>
+</html>
