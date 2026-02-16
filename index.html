@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta name="theme-color" content="#00c3ff">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NAVAJA</title>
@@ -32,16 +31,6 @@ body{
     margin-left:20px;
     overflow:auto;
     max-height:90vh;
-}
-
-input{
-    width:100%;
-    padding:8px;
-    margin-bottom:10px;
-    background:#1e1e1e;
-    border:none;
-    color:white;
-    border-radius:6px;
 }
 
 select{
@@ -82,9 +71,21 @@ select{
     transition:0.3s;
 }
 
-.note.scale-active{ background:#ff3c3c; opacity:1; }
-.note.tonic{ background:#00c3ff; opacity:1; font-weight:bold; }
-.note.chord-active{ background:#00ff88 !important; opacity:1; }
+.note.scale-active{
+    background:#ff3c3c;
+    opacity:1;
+}
+
+.note.tonic{
+    background:#00c3ff;
+    opacity:1;
+    font-weight:bold;
+}
+
+.note.chord-active{
+    background:#00ff88 !important;
+    opacity:1;
+}
 
 .chord-panel{
     display:flex;
@@ -109,10 +110,18 @@ select{
     margin-bottom:6px;
 }
 
-.chord:hover{ background:#222; }
+.chord:hover{
+    background:#222;
+}
 
-.genre{ margin-bottom:20px; }
-.genre h4{ color:#00c3ff; margin-bottom:5px; }
+.genre{
+    margin-bottom:20px;
+}
+
+.genre h4{
+    color:#00c3ff;
+    margin-bottom:5px;
+}
 
 .builder{
     margin-top:15px;
@@ -185,6 +194,7 @@ button{
 <h3>Triadas</h3>
 <div id="triads"></div>
 </div>
+
 <div class="column">
 <h3>7mas</h3>
 <div id="sevenths"></div>
@@ -200,9 +210,12 @@ button{
 
 <div class="builder">
 
-<input type="text" id="songTitle" placeholder="Nombre de la canción...">
 
-<h3>Construye tu Progresión:</h3>
+<h3>Contruye tu Progresión:</h3>
+<p>Usa el selector de acordes en triadas y septimas para armar tu progresión y Navaja dectectara automatcamente el estilo, porcentaje de parentezco con ese genere y el mood.</p>
+
+  <input type="text" id="songTitle" placeholder="Nombre de la canción..." 
+style="width:100%; padding:8px; margin-bottom:10px; background:#1e1e1e; border:none; color:white; border-radius:6px;">
 
 <div id="printArea">
 <h1 id="printTitle"></h1>
@@ -213,6 +226,7 @@ button{
 <h2>Progresión</h2>
 <div id="printProgression"></div>
 </div>
+
 
 <button onclick="clearProgression()">Limpiar</button>
 <button onclick="savePDF()">Guardar PDF</button>
@@ -231,205 +245,277 @@ button{
 
 document.addEventListener("DOMContentLoaded", function(){
 
-const circleNotes=["C","G","D","A","E","B","F#","C#","Ab","Eb","Bb","F"];
-const chromatic=["C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"];
+const circleNotes = ["C","G","D","A","E","B","F#","C#","Ab","Eb","Bb","F"];
+const chromatic = ["C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"];
 
-const patterns={
-major:[0,2,4,5,7,9,11],
-minor:[0,2,3,5,7,8,10],
-harmonic:[0,2,3,5,7,8,11],
-melodic:[0,2,3,5,7,9,11]
+const patterns = {
+    major: [0,2,4,5,7,9,11],
+    minor: [0,2,3,5,7,8,10],
+    harmonic: [0,2,3,5,7,8,11],
+    melodic: [0,2,3,5,7,9,11]
 };
 
-let userProgression=[];
-let currentChordNames=[];
-let currentMode="major";
+let userProgression = [];
+let currentChordNames = [];
+let currentMode = "major";
 
-const keySelect=document.getElementById("keySelect");
-const modeSelect=document.getElementById("modeSelect");
-const circle=document.getElementById("circle");
+const keySelect = document.getElementById("keySelect");
+const modeSelect = document.getElementById("modeSelect");
+const circle = document.getElementById("circle");
 
 chromatic.forEach(note=>{
-let option=document.createElement("option");
-option.value=note;
-option.textContent=note;
-keySelect.appendChild(option);
+    let option=document.createElement("option");
+    option.value=note;
+    option.textContent=note;
+    keySelect.appendChild(option);
 });
 
-function buildScale(root,mode){
-let rootIndex=chromatic.indexOf(root);
-return patterns[mode].map(i=>chromatic[(rootIndex+i)%12]);
+function buildScale(root, mode){
+    let rootIndex = chromatic.indexOf(root);
+    return patterns[mode].map(i => chromatic[(rootIndex+i)%12]);
 }
 
 function detectTriadQuality(notes){
-let rootIndex=chromatic.indexOf(notes[0]);
-let third=(chromatic.indexOf(notes[1])-rootIndex+12)%12;
-let fifth=(chromatic.indexOf(notes[2])-rootIndex+12)%12;
-if(third===4&&fifth===7)return "";
-if(third===3&&fifth===7)return "m";
-if(third===3&&fifth===6)return "°";
-return "";
+    let rootIndex = chromatic.indexOf(notes[0]);
+    let third = (chromatic.indexOf(notes[1]) - rootIndex + 12)%12;
+    let fifth = (chromatic.indexOf(notes[2]) - rootIndex + 12)%12;
+
+    if(third===4 && fifth===7) return "";
+    if(third===3 && fifth===7) return "m";
+    if(third===3 && fifth===6) return "°";
+    return "";
 }
 
-function buildChord(scale,degree,size){
-let chord=[];
-for(let i=0;i<size;i++){
-chord.push(scale[(degree+i*2)%7]);
-}
-return chord;
-}
-
-function drawCircle(root,mode){
-circle.innerHTML="";
-const radius=200;
-const center=250;
-let scale=buildScale(root,mode);
-
-circleNotes.forEach((note,index)=>{
-const angle=(index/12)*(2*Math.PI)-Math.PI/2;
-const x=center+radius*Math.cos(angle);
-const y=center+radius*Math.sin(angle);
-
-const div=document.createElement("div");
-div.classList.add("note");
-div.style.left=x+"px";
-div.style.top=y+"px";
-div.textContent=note;
-
-if(note===root)div.classList.add("tonic");
-else if(scale.includes(note))div.classList.add("scale-active");
-
-circle.appendChild(div);
-});
+function buildChord(scale, degree, size){
+    let chord=[];
+    for(let i=0;i<size;i++){
+        chord.push(scale[(degree + i*2)%7]);
+    }
+    return chord;
 }
 
-function highlightChord(chordNotes){
-document.querySelectorAll(".note").forEach(n=>{
-n.classList.remove("chord-active");
-if(chordNotes.includes(n.textContent)){
-n.classList.add("chord-active");
-}
-});
-}
+function analyzeStyle(progression){
 
-function addToProgression(name){
-userProgression.push(name);
-document.getElementById("printProgression").innerText=userProgression.join(" ➜ ");
-detectCurrentStyle();
-}
+    let score = {
+        Reggaeton:0,
+        Trap:0,
+        Afrobeat:0,
+        Rap:0,
+        Hiphop:0
+    };
 
-function clearProgression(){
-userProgression=[];
-document.getElementById("printProgression").innerText="";
-document.getElementById("analysisBox").style.display="none";
-}
+    let degrees = progression.map(ch => currentChordNames.indexOf(ch));
 
-function savePDF(){
+    if(degrees.includes(5)) score.Reggaeton+=2;
+    if(degrees.includes(3) && degrees.includes(4)) score.Reggaeton+=1;
 
-const title=document.getElementById("songTitle").value||"Sin título";
-const scale=keySelect.value+" "+modeSelect.options[modeSelect.selectedIndex].text;
+    if(degrees[0]===0 && degrees.includes(6)) score.Trap+=2;
+    if(degrees.length<=3) score.Trap+=1;
 
-const style=document.getElementById("styleResult").innerText||"Sin detección";
-const percentage=document.getElementById("percentageResult").innerText||"";
-const mood=document.getElementById("moodResult").innerText||"";
+    if(degrees.length===3) score.Afrobeat+=2;
 
-document.getElementById("printTitle").innerText=title;
-document.getElementById("printScale").innerText="Escala: "+scale;
-document.getElementById("printStyle").innerText=style+" | "+percentage;
-document.getElementById("printMood").innerText=mood;
+    if(degrees.length<=3) score.Rap+=2;
 
-window.print();
+    if(degrees.includes(1) || degrees.includes(6)) score.Hiphop+=1;
+
+    return score;
 }
 
-window.clearProgression=clearProgression;
-window.highlightChord=highlightChord;
-window.addToProgression=addToProgression;
-window.savePDF=savePDF;
+function calculateMood(progression){
+    let degrees = progression.map(ch => currentChordNames.indexOf(ch));
 
-function analyzeStyle(prog){
-let score={Reggaeton:0,Trap:0,Afrobeat:0,Rap:0,Hiphop:0};
-let degrees=prog.map(ch=>currentChordNames.indexOf(ch));
-if(degrees.includes(5))score.Reggaeton+=2;
-if(degrees.length<=3)score.Trap+=2;
-if(degrees.length===3)score.Afrobeat+=2;
-if(degrees.includes(1))score.Hiphop+=1;
-return score;
-}
+    if(currentMode==="minor") return "🎭 Oscuro / Melancólico";
 
-function calculateMood(prog){
-if(currentMode==="minor")return "🎭 Oscuro / Melancólico";
-if(prog.length<=3)return "🔥 Comercial / Minimalista";
-return "☀️ Alegre / Estable";
+    if(degrees.includes(5)) return "🔥 Comercial / Resolutivo";
+
+    if(degrees.includes(3)) return "💔 Melancólico";
+
+    return "☀️ Alegre / Estable";
 }
 
 function detectCurrentStyle(){
-if(userProgression.length<2){
-document.getElementById("analysisBox").style.display="none";
-return;
+
+    if(userProgression.length<2){
+        document.getElementById("analysisBox").style.display="none";
+        return;
+    }
+
+    document.getElementById("analysisBox").style.display="block";
+
+    let result = analyzeStyle(userProgression);
+
+    let total = Object.values(result).reduce((a,b)=>a+b,0);
+    let best = Object.keys(result).reduce((a,b)=> result[a]>result[b]?a:b);
+
+    let percentage = total>0 ? Math.round((result[best]/total)*100) : 0;
+
+    document.getElementById("styleResult").innerText =
+        "🎧 Estilo Detectado: " + best;
+
+    document.getElementById("percentageResult").innerText =
+        "📊 Coincidencia: " + percentage + "%";
+
+    document.getElementById("moodResult").innerText =
+        "🎹 Mood: " + calculateMood(userProgression);
 }
-document.getElementById("analysisBox").style.display="block";
-let result=analyzeStyle(userProgression);
-let total=Object.values(result).reduce((a,b)=>a+b,0);
-let best=Object.keys(result).reduce((a,b)=>result[a]>result[b]?a:b);
-let percentage=total>0?Math.round((result[best]/total)*100):0;
 
-document.getElementById("styleResult").innerText="🎧 Estilo Detectado: "+best;
-document.getElementById("percentageResult").innerText="📊 Coincidencia: "+percentage+"%";
-document.getElementById("moodResult").innerText="🎹 Mood: "+calculateMood(userProgression);
+function drawCircle(root, mode){
+    circle.innerHTML="";
+    const radius=200;
+    const center=250;
+    let scale = buildScale(root, mode);
+
+    circleNotes.forEach((note,index)=>{
+        const angle=(index/12)*(2*Math.PI)-Math.PI/2;
+        const x=center+radius*Math.cos(angle);
+        const y=center+radius*Math.sin(angle);
+
+        const div=document.createElement("div");
+        div.classList.add("note");
+        div.style.left=x+"px";
+        div.style.top=y+"px";
+        div.textContent=note;
+
+        if(note===root){
+            div.classList.add("tonic");
+        } else if(scale.includes(note)){
+            div.classList.add("scale-active");
+        }
+
+        circle.appendChild(div);
+    });
 }
 
-function update(){
-let root=keySelect.value;
-let mode=modeSelect.value;
-currentMode=mode;
-let scale=buildScale(root,mode);
-drawCircle(root,mode);
-
-document.getElementById("scaleNotes").innerText="Notas de la escala: "+scale.join(" - ");
-
-let triHTML="";
-currentChordNames=[];
-
-for(let i=0;i<7;i++){
-let tri=buildChord(scale,i,3);
-let quality=detectTriadQuality(tri);
-let name=scale[i]+quality;
-currentChordNames.push(name);
-triHTML+=`<div class="chord" onclick='highlightChord(${JSON.stringify(tri)}); addToProgression("${name}")'>
-${name} → ${tri.join(" - ")}</div>`;
+function highlightChord(chordNotes){
+    document.querySelectorAll(".note").forEach(n=>{
+        n.classList.remove("chord-active");
+        if(chordNotes.includes(n.textContent)){
+            n.classList.add("chord-active");
+        }
+    });
 }
-document.getElementById("triads").innerHTML=triHTML;
 
-let sevHTML="";
-for(let i=0;i<7;i++){
-let sev=buildChord(scale,i,4);
-let quality=detectTriadQuality(sev.slice(0,3));
-let name=scale[i]+quality+"7";
-sevHTML+=`<div class="chord" onclick='highlightChord(${JSON.stringify(sev)}); addToProgression("${name}")'>
-${name} → ${sev.join(" - ")}</div>`;
+function addToProgression(name){
+    userProgression.push(name);
+    document.getElementById("myProgression").innerText =
+        userProgression.join(" ➜ ");
+    detectCurrentStyle();
 }
-document.getElementById("sevenths").innerHTML=sevHTML;
 
-regenerateProgressions();
+function clearProgression(){
+    userProgression=[];
+    document.getElementById("myProgression").innerText="";
+    document.getElementById("analysisBox").style.display="none";
+}
+
+function savePDF(){
+    window.print();
+}
+
+window.clearProgression = clearProgression;
+window.highlightChord = highlightChord;
+window.addToProgression = addToProgression;
+window.savePDF = savePDF;
+
+function getFunctions(mode){
+
+    if(mode==="major"){
+        return { tonic:[0,5], subdominant:[1,3], dominant:[4,6] };
+    }
+
+    return { tonic:[0,5], subdominant:[3,1], dominant:[4,6] };
+}
+
+function randomFrom(arr){
+    return arr[Math.floor(Math.random()*arr.length)];
+}
+
+function generateProgression(mode, length){
+
+    const funcs = getFunctions(mode);
+
+    const templates = [
+        ["tonic","subdominant","tonic","dominant"],
+        ["tonic","tonic","subdominant","dominant"],
+        ["tonic","subdominant","dominant","tonic"],
+        ["tonic","dominant","subdominant","tonic"]
+    ];
+
+    const template = randomFrom(templates);
+
+    let progression=[];
+
+    for(let i=0;i<length;i++){
+        let func = template[i % template.length];
+        progression.push(randomFrom(funcs[func]));
+    }
+
+    return progression;
 }
 
 function regenerateProgressions(){
-const genres=["Reggaeton","Afrobeat","Trap","Rap","Hiphop"];
-let html="";
-genres.forEach(g=>{
-let prog=generateProgression(currentMode,4);
-let chords=prog.map(d=>currentChordNames[d]);
-html+=`<div class="genre"><h4>${g}</h4>${chords.join(" - ")}</div>`;
-});
-document.getElementById("progressions").innerHTML=html;
+
+    const genres = ["Reggaeton","Afrobeat","Trap","Rap","Hiphop"];
+    let html="";
+
+    genres.forEach(genre=>{
+        let length = genre==="Afrobeat"||genre==="Rap"?3:4;
+        let prog = generateProgression(currentMode, length);
+        let chords = prog.map(d=>currentChordNames[d]);
+
+        html+=`
+        <div class="genre">
+            <h4>${genre}</h4>
+            ${chords.join(" - ")}
+        </div>
+        `;
+    });
+
+    document.getElementById("progressions").innerHTML=html;
 }
 
-function generateProgression(mode,length){
-let arr=[];
-for(let i=0;i<length;i++){
-arr.push(Math.floor(Math.random()*7));
-}
-return arr;
+window.regenerateProgressions = regenerateProgressions;
+
+function update(){
+
+    let root = keySelect.value;
+    let mode = modeSelect.value;
+    currentMode = mode;
+
+    let scale = buildScale(root, mode);
+    drawCircle(root, mode);
+
+    document.getElementById("scaleNotes").innerText =
+        "Notas de la escala: " + scale.join(" - ");
+
+    let triHTML="";
+    currentChordNames=[];
+
+    for(let i=0;i<7;i++){
+        let tri = buildChord(scale,i,3);
+        let quality = detectTriadQuality(tri);
+        let name = scale[i] + quality;
+        currentChordNames.push(name);
+
+        triHTML+=`<div class="chord" onclick='highlightChord(${JSON.stringify(tri)}); addToProgression("${name}")'>
+        ${name} → ${tri.join(" - ")}</div>`;
+    }
+
+    document.getElementById("triads").innerHTML=triHTML;
+
+    let sevHTML="";
+    for(let i=0;i<7;i++){
+        let sev = buildChord(scale,i,4);
+        let quality = detectTriadQuality(sev.slice(0,3));
+        let name = scale[i] + quality + "7";
+
+        sevHTML+=`<div class="chord" onclick='highlightChord(${JSON.stringify(sev)}); addToProgression("${name}")'>
+        ${name} → ${sev.join(" - ")}</div>`;
+    }
+
+    document.getElementById("sevenths").innerHTML=sevHTML;
+
+    regenerateProgressions();
 }
 
 keySelect.addEventListener("change",update);
@@ -437,18 +523,11 @@ modeSelect.addEventListener("change",update);
 
 keySelect.value="C";
 modeSelect.value="major";
+
 update();
 
 });
 
 </script>
-<script>
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("service-worker.js")
-    .then(() => console.log("PWA lista"))
-    .catch(err => console.log("Error PWA:", err));
-}
-</script>
-
 </body>
 </html>
