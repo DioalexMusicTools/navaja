@@ -30,7 +30,7 @@ jobs:
           test -d "$PLUGIN"
           BIN="$PLUGIN/Contents/MacOS/DC-23"
           test -f "$BIN"
-          lipo -verify_arch arm64 x86_64 "$BIN"
+          lipo "$BIN" -verify_arch arm64 x86_64
           file "$BIN"
       - name: Package VST3
         run: |
