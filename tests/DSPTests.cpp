@@ -1,8 +1,13 @@
 #include "DSP.h"
-#include <cassert>
+#include <cstdlib>
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <vector>
+
+void require(bool ok, const char* msg) {
+    if (!ok) { std::cerr << "DSP test failure: " << msg << "\n"; std::exit(EXIT_FAILURE); }
+}
 
 int main() {
     dc23::Engine engine;
@@ -20,16 +25,16 @@ int main() {
     p.mix = 1.0f;
     engine.process(pointers, 2, count, p);
     for (int i = 0; i < count; ++i)
-        assert(std::abs(l[i] - original[i]) < 1.0e-6f);
+        require(std::abs(l[i] - original[i]) < 1.0e-6f, "dry-through exact");
 
     engine.reset();
-    l = original;
+    std::copy(original.begin(), original.end(), l.begin());
     for (int i = 0; i < count; ++i) r[i] = -original[i];
     p.amount.fill(1.0f);
     p.mix = 0.0f;
     engine.process(pointers, 2, count, p);
     for (int i = 0; i < count; ++i)
-        assert(std::abs(l[i] - original[i]) < 1.0e-6f);
+        require(std::abs(l[i] - original[i]) < 1.0e-6f, "dry-through exact");
 
     engine.reset();
     std::fill(l.begin(), l.end(), 0.0f);
@@ -40,7 +45,7 @@ int main() {
     engine.process(pointers, 2, count, p);
     float energy = 0.0f;
     for (float s : l) energy += std::abs(s);
-    assert(energy > 0.01f);
+    require(energy > 0.01f, "noise audible");
 
     engine.reset();
     p.amount.fill(1.0f);
@@ -53,8 +58,8 @@ int main() {
         }
         engine.process(pointers, 2, count, p);
         for (int i = 0; i < count; ++i) {
-            assert(std::isfinite(l[i]));
-            assert(std::isfinite(r[i]));
+            require(std::isfinite(l[i]), "left finite");
+            require(std::isfinite(r[i]), "right finite");
         }
     }
     std::cout << "DC-23: DSP smoke tests passed\n";
