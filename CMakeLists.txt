@@ -31,6 +31,8 @@ if(DC23_BUILD_PLUGIN)
         COPY_PLUGIN_AFTER_BUILD FALSE
         VST3_CATEGORIES Fx)
 
+    juce_generate_juce_header(DC23Plugin)
+
     target_sources(DC23Plugin PRIVATE
         Source/PluginProcessor.cpp Source/PluginProcessor.h
         Source/PluginEditor.cpp Source/PluginEditor.h
