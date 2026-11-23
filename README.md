@@ -1,167 +1,67 @@
-# NAVAJA
+# DC-23 — Vintage Color Engine
 
-Dioalex Music Tools
-Creative Harmonic Builder for Urban Producers
+**DC-23** is an original six-module lo-fi multi-effect designed for macOS VST3 hosts including FL Studio. Created for Dioalex Music Tools. Version 0.1.0 (initial engineering build).
 
----
+> This is NOT a copy of RC-20 Retro Color or Arturia Pure Sub. Its code, DSP and interface are original. The reference design informs only broad visual direction (dark panels, acid-lime header, modern controls). There are no third-party presets, sampled assets, trademarks or source code in this project.
 
-## Descripción
+## Features
 
-NAVAJA es una Progressive Web App (PWA) diseñada para productores de música urbana que desean crear progresiones armónicas modernas con base sólida en teoría musical.
+| Module | Amount knob | Character knob |
+| --- | --- | --- |
+| Noise | Tape-style hiss and dust | Filtered noise color |
+| Wobble | Continuous wow/flutter tape warble | Modulation speed (Hz) |
+| Distort | Gain-compensated tanh saturator | Drive color |
+| Digital | Sample-and-hold / bit-depth reduction | Rate reduction |
+| Space | 3-comb stereo ambient room | Room decay |
+| Magnetic | Smoothed stochastic gain dropouts | Wear speed |
 
-La aplicación combina visualización interactiva del círculo armónico, generación dinámica de progresiones por género y análisis básico de estilo, permitiendo construir ideas musicales de forma rápida, coherente y creativa.
+Master controls: magnitude (scales all effects), Dry/Wet, output gain, low cut, high cut. Each module has its own ON/OFF toggle. All parameters are automatable and stored with the FL Studio project (JUCE AudioProcessorValueTreeState). Includes six factory presets and .dc23preset XML save/load.
 
-NAVAJA no reemplaza la creatividad, la optimiza y la estructura.
+## Building on a Mac
 
----
+Requirements: macOS with Xcode Command Line Tools or Xcode, CMake >= 3.22, network access to clone JUCE, C++17.
 
-## Acceso a la aplicación
+    cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+    cmake --build build --config Release --target DC23Plugin_VST3 --parallel 3
+    ctest --test-dir build -C Release --output-on-failure
 
-La aplicación está desplegada en GitHub Pages y puede utilizarse directamente desde el siguiente enlace:
+Output (expected):
 
-[https://dioalexmusictools.github.io/navaja/](https://dioalexmusictools.github.io/navaja/)
+    build/DC23Plugin_artefacts/Release/VST3/DC-23.vst3
 
-No requiere instalación para su uso desde navegador.
+Install by copying the entire .vst3 bundle to:
 
----
+    ~/Library/Audio/Plug-Ins/VST3/
 
-## Características Principales
+Rescan plugins in FL Studio (Options > Manage plugins > Find installed plugins), then insert DC-23 on a mixer effect slot. Do not put it in a synth instrument slot.
 
-### 1. Círculo Armónico Interactivo
+## GitHub Actions / compiled plugin
 
-* Visualización dinámica basada en la escala seleccionada.
-* Iluminación automática de notas al seleccionar acordes.
-* Relación visual clara entre tonalidad y función armónica.
+The workflow at .github/workflows/build-macos.yml compiles an arm64/x86_64 universal macOS VST3 and runs core DSP tests. Upon a successful workflow run, get the ZIP under **Actions > DC-23 macOS VST3 > run > Artifacts**. GitHub Actions produces build artifacts, *not* a notarized or installer-signed release.
 
-### 2. Triadas y Séptimas con Grados
+If Gatekeeper blocks an independently built plugin, inspect its origin and sign the locally installed bundle ad-hoc for local testing:
 
-* Construcción automática de acordes según la escala.
-* Identificación de acordes:
+    codesign --force --deep --sign - "$HOME/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
 
-  * Mayores
-  * Menores
-  * Disminuidos
-* Representación con números romanos:
+For public distribution, developer signing, notarization and tests on the target macOS/FL Studio versions are required. No reliability or compatibility guarantee is made before those tests.
 
-  * I, ii, iii, IV, V, vi, vii°
-* Disponible en triadas y acordes con séptima.
+## Testing core DSP without JUCE
 
-### 3. Progresiones Urbanas Dinámicas
+    cmake -S . -B build-core -DDC23_BUILD_PLUGIN=OFF
+    cmake --build build-core
+    ctest --test-dir build-core --output-on-failure
 
-Incluye sugerencias inspiradas en:
+The portable DSP is in Source/DSP.h (no runtime dynamic allocations); smoke tests cover transparent bypass, dry/wet preservation, audible noise and sustained finite output.
 
-* Reggaeton
-* Afrobeat
-* Trap
-* Rap
-* Hiphop
+## Design/technical notes
 
-Las progresiones:
+- Stereo and mono support, 44.1–192 kHz intended.
+- Smoothed effect intensities and volume dropouts.
+- Stateful delay lines allocated only at prepareToPlay, no allocation or locks in processBlock.
+- Factory sounds are illustrative starting points, not matches to proprietary RC-20 algorithms.
+- The reverb is deliberately light and compact; this is an early engineering release, not an exact feature/sonic equivalent of RC-20 v2 (e.g. no granular echo, movable FX order or advanced codec processing).
+- Editor layout fixed at 1060×660; VST3 host automation and project state are supported.
 
-* Se generan dinámicamente.
-* No utilizan constantes fijas.
-* Respetan reglas reales de teoría musical.
-* Cambian al presionar el botón "Inspirar" o al recargar la aplicación.
+## Licensing
 
-### 4. Detección de Estilo (Nivel 1)
-
-Analiza la progresión construida por el usuario y estima:
-
-* Estilo aproximado
-* Porcentaje de coincidencia
-* Mood armónico
-
-### 5. Constructor de Progresiones
-
-* Agrega acordes mediante clic.
-* Visualiza la progresión en tiempo real.
-* Limpia la progresión.
-* Guarda la progresión como PDF mediante la función de impresión del navegador.
-* El PDF incluye:
-
-  * Nombre de la canción
-  * Escala seleccionada
-  * Estilo detectado
-  * Coincidencia
-  * Mood
-  * Progresión armónica
-
-### 6. Diseño Responsive y PWA
-
-* Adaptado a escritorio y dispositivos móviles.
-* Instalable como aplicación desde el navegador.
-* Funciona como Progressive Web App.
-
----
-
-## Tecnologías Utilizadas
-
-* HTML5
-* CSS3 (Responsive Design)
-* JavaScript Vanilla
-* Service Worker
-* Web App Manifest
-* GitHub Pages para despliegue
-
----
-
-## Instalación como PWA
-
-1. Acceder a:
-   [https://dioalexmusictools.github.io/navaja/](https://dioalexmusictools.github.io/navaja/)
-
-2. Abrir en Google Chrome o navegador compatible.
-
-3. Seleccionar "Instalar aplicación" desde el menú del navegador.
-
-4. La aplicación quedará instalada como app independiente.
-
----
-
-## Fundamento Teórico
-
-NAVAJA trabaja bajo los siguientes principios:
-
-* Escalas mayores diatónicas.
-* Construcción funcional de acordes.
-* Funciones armónicas:
-
-  * Tónica
-  * Subdominante
-  * Dominante
-* Progresiones comunes en música urbana contemporánea.
-* Generación aleatoria controlada que respeta coherencia tonal.
-
----
-
-## Público Objetivo
-
-* Productores urbanos.
-* Beatmakers.
-* Compositores.
-* Creadores que desean acelerar su flujo creativo.
-* Personas interesadas en aprender armonía aplicada.
-
----
-
-## Roadmap Futuro
-
-* Exportación MIDI.
-* Guardado de progresiones en LocalStorage.
-* Nivel avanzado de detección de estilo.
-* Soporte para escalas menores y modos.
-* Análisis armónico ampliado.
-
----
-
-## Autor
-
-Dioalex Music Tools
-
----
-
-## Licencia
-
-Todos los derechos reservados.
-
-No se tiene permitida la modificación y distribución de la app sin autorización expresa del autor.
+JUCE 9 is dual-licensed under AGPLv3 and a commercial JUCE license. Review https://github.com/juce-framework/JUCE/blob/master/LICENSE.md and https://juce.com/legal/juce-9-licence/ before redistribution. **A commercial JUCE licence may be required**, especially for closed-source products. No license grant is provided for this original DC-23 source until the project owner selects an appropriate license. Third-party code must retain its own applicable license notices.
