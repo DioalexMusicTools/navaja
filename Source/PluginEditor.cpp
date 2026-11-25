@@ -384,10 +384,12 @@ void DC23AudioProcessorEditor::paint(juce::Graphics& g) {
                    juce::Justification::centred);
         g.drawText("FLUX",bounds.getX()+108,bounds.getY()+262,94,18,
                    juce::Justification::centred);
-        g.setColour(juce::Colour(0xff66716f));
-        font(g, 9.5f, true);
-        g.drawText(subtitles[size_t(i)],bounds.getX()+12,bounds.getY()+358,
-                   186,13,juce::Justification::centred);
+        if (i != 0 && i != 2 && i != 3) {
+            g.setColour(juce::Colour(0xff66716f));
+            font(g, 9.5f, true);
+            g.drawText(subtitles[size_t(i)],bounds.getX()+12,bounds.getY()+358,
+                       186,13,juce::Justification::centred);
+        }
         if (i == 3) {
             g.setColour(muted);
             font(g, 10, true);
