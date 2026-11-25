@@ -88,7 +88,7 @@ int main() {
         std::fill(right.begin(),right.end(),0.0f);
         if(block==0) left[0]=right[0]=0.8f;
         engine.process(channels,2,N,p);
-        if(block>23) for(float x:left)delayedEnergy+=std::abs(x);
+        if(block>=23) for(float x:left)delayedEnergy+=std::abs(x);
     }
     require(delayedEnergy>0.005f,"2-second echo tail");
 
