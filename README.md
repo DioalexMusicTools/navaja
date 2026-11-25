@@ -1,74 +1,63 @@
-# DC-23 0.2 — Vintage Color Lab
+# DC-23 v0.3 — Vintage Color Lab
 
-Original macOS VST3 multi-effects processor for FL Studio. Developed for Dioalex Music Tools.
+Original, JUCE-based 6-module multi-FX VST3 for macOS and FL Studio, produced for Dioalex Music Tools.
 
-## What's improved in 0.2
+**Not affiliated with XLN Audio, RC-20, or Arturia.** No source code, proprietary presets, logos, audio samples or internal algorithms are copied. The preset library is an original interpretation of common lo-fi tape, vinyl, ambient and sampler-production use cases.
 
-A major audio/UI iteration built on the original six-module engine.
+## What's new
 
-* **Noise**: Tape hiss, vinyl crackles or electronic hum; COLOR and FLUX controls.
-* **Wobble**: tape wow/flutter with independent RATE and organic FLUX.
-* **Distort**: three original models (TAPE / VALVE / FUZZ), tone and per-effect FLUX.
-* **Digital**: sampler-style downsampling, bit depth degradation, extra SMOOTH control.
-* **Space**: four damped combs plus two diffusion allpasses; adjustable DECAY.
-* **Magnetic**: intermittent, smoothly ramped volume dropouts.
-* **Echo**: tape-colored repeats with MIX, TIME (90–900 ms) and FEEDBACK.
-* **Master**: MAGNITUDE, DRY/WET, output dB, stereo width, low-cut and high-cut.
+- **Clear units throughout the interface**: Amount, Flux, Color, Digital Crush, Smooth, Feedback, Magnitude and Stereo Width appear as 0–100%. Wobble Rate shows Hz. Reverb Decay and Magnetic Drop Interval show milliseconds (ms). Output is dB.
+- **Centered bipolar Dry/Wet controls**: the upper-center position is **0% = 50/50 dry/wet**. Turning left moves to **-100% = fully dry**, right to **+100% = fully wet**. Both global mix and Echo mix use this convention. Echo has its own ON/OFF switch and is OFF for the clean default preset.
+- **BPM-synced Echo**: note divisions **1/2, 1/4, 1/8 dotted, 1/8, 1/8 triplet, 1/16, 1/32**. Echo reads the host's BPM, with a 120 BPM fallback. The UI displays the resulting duration in milliseconds and current BPM. Time mapping, e.g. 1/4 at 120 BPM = 500ms.
+- **Low Cut / High Cut in Hertz**: physical cutoff frequencies, 20–2200Hz and 250–20000Hz; separate on/off switches permit genuine bypass without using a magic 0Hz setting.
+- **Custom professional interface**: centered bipolar knobs, consistent numeric readouts and legends, six horizontally aligned effect modules, animated waveforms, audio-reactive display and output-meter indicator. These visualizations indicate motion and character; they are **not** precision oscilloscopes or frequency analyzers.
+- **20 original factory presets**: Clean Slate, Cassette Warmth, Night Bus, Dusty Piano, Vinyl Morning, Beat Tape, Worn Drum Loop, Bit Crumble, Dreamy Drift, Soft Organ, Spacious Pad, Glassy Repeats, Neon Stairs, Lost Transmission, Old Radio, Mono Memory, Analog Bus, Saturated 808, Tape Flutter and Slumber Keys. Presets are original DC-23 values, not conversions of RC-20 files.
 
-Each module offers its own ON/OFF, AMOUNT, CHARACTER and FLUX. FLUX adds smoothed, bounded organic variation independently to each module. Six factory presets and user .dc23preset save/load remain available.
+## Audio engine
 
-The interface presents a single horizontal six-module signal chain with a high-contrast neon green header and dark custom rotary knobs. This is an **original UI** inspired by modern audio-plugin workflows, not a reproduction of RC-20 or Arturia Pure Sub.
+Six serial modules: Noise (Tape/Vinyl/Hum), Wobble (wow/flutter), Distort (Tape/Valve/Fuzz), Digital (bit and rate reduction), Space (4-feedback-comb diffuse reverb with time-based feedback), Magnetic (dropout interval in ms). Each has ON/OFF, Amount, Character and Flux. Echo follows the effect modules, with BPM sync and feedback. Output width and low/high cuts follow Echo. All JUCE parameters are automatable.
 
-## Status and limitations
+## Building
 
-- DSP, module controls and project recall are integrated; a successful CI run verifies macOS universal VST3 compilation and the C++ audio tests. **Actual plugin stability and audio character must still be checked in FL Studio on real projects.**
-- Effect order remains fixed. No Echo sync-to-tempo or exact RC-20 proprietary algorithm/preset matching.
-- Added parameters preserve old parameter IDs and VST3 identity; older saved projects should continue to load, but make a backup of critical projects before upgrading.
-- The GitHub build is **unsigned/not notarized by Apple**. Mac Gatekeeper may flag the download. Review source and build provenance before installing.
-- The engine is designed to avoid allocations/locks while processing audio; channel delay buffers are allocated in prepareToPlay.
-
-## Download and installation
-
-Navigate to **Actions > DC-23 macOS VST3** and open the latest successful workflow run for branch dc23-v2. Under *Artifacts*, download **DC-23-macOS-universal-VST3**, unzip the downloaded artifact, and if needed unzip the inner DC-23-macOS-universal-VST3.zip. You should have a full **DC-23.vst3** bundle.
-
-Close FL Studio. Replace the previous DC-23.vst3 bundle in either:
-
-    ~/Library/Audio/Plug-Ins/VST3/
-    /Library/Audio/Plug-Ins/VST3/
-
-Never install two copies simultaneously. If macOS quarantines this self-built artifact, and **only after verifying its origin**, execute this in Terminal for a *user-level* installation:
-
-    xattr -dr com.apple.quarantine "$HOME/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
-    codesign --force --deep --sign - "$HOME/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
-
-For a system-level installation replace the path with /Library/Audio/Plug-Ins/VST3/DC-23.vst3 and use sudo as appropriate. These commands do not disable system-wide Gatekeeper. Reopen FL Studio and run Options > Manage Plugins > Find installed plugins. Insert DC-23 into a mixer effect slot.
-
-## Compile on your Mac
-
-Requires macOS, Xcode Command Line Tools or Xcode, CMake >= 3.22 and internet for JUCE 9.0.6.
+Requirements: macOS, Xcode 16 or Xcode CLI tools, CMake 3.22+, network access for JUCE 9.0.6 and its licence terms.
 
     cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
     cmake --build build --config Release --target DC23Plugin_VST3 dc23_dsp_tests --parallel 3
     ctest --test-dir build -C Release --output-on-failure
 
-Expected plug-in bundle:
+Compiled bundle expected in:
 
     build/DC23Plugin_artefacts/Release/VST3/DC-23.vst3
 
-Core audio tests can also run without JUCE:
+Or run portable DSP tests without JUCE:
 
     cmake -S . -B build-core -DDC23_BUILD_PLUGIN=OFF
     cmake --build build-core
     ctest --test-dir build-core --output-on-failure
 
-## Roadmap
+## macOS installation
 
-1. Blind A/B listening tests with commercial lo-fi processors and reference audio clips.
-2. Audio analyzer: frequency response, dynamic gain, input/output peak and spectrum.
-3. Linear/oversampled saturation and more musical distortion models.
-4. Tempo-sync Echo, adjustable per-module ordering and parameter-level fine-tuning.
-5. Installable signed/notarized macOS package.
+In GitHub, open **Actions > DC-23 macOS VST3** and select the latest green build for branch **dc23-v03**. Under Artifacts, download **DC-23-macOS-universal-VST3**; expand both the Actions artifact ZIP and the inner plugin ZIP if applicable. Install the full **DC-23.vst3** bundle into one of:
 
-## Licensing
+    ~/Library/Audio/Plug-Ins/VST3/
+    /Library/Audio/Plug-Ins/VST3/
 
-DC-23 is original source created for Dioalex Music Tools, not affiliated with XLN Audio or Arturia. No third-party source or preset samples are included. JUCE is offered under AGPLv3 or a commercial licence; review the upstream terms before commercial closed-source distribution. No license grant is stated for this repository's original code until its owner selects one. Read https://juce.com/legal/juce-9-licence/ and https://github.com/juce-framework/JUCE/blob/master/LICENSE.md.
+Close FL Studio before replacing the existing bundle; back up your older DC-23.vst3 and any important FL Studio projects first.
+
+The GitHub artifact is not Apple Developer signed/notarized. If macOS quarantines your self-built download, confirm its origin and then use (for user-level installation):
+
+    xattr -dr com.apple.quarantine "$HOME/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
+    codesign --force --deep --sign - "$HOME/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
+
+Change the path and add sudo if you installed under /Library/Audio/Plug-Ins/VST3. Reopen FL Studio and rescan via Options > Manage plugins.
+
+## Compatibility and test status
+
+- GitHub Actions builds native VST3 for Intel and Apple Silicon and runs timing, factory preset, audio bypass, Echo and extreme-input tests. These are engineering tests, not proof of auditory quality, sample-accurate host automation or FL Studio stability.
+- The VST3 bundle ID is unchanged for host recognition. **Existing parameter ranges have changed to display user-friendly units**, so older DC-23 automation and project recall may behave differently. Back up projects before installing. The previous v0.2 branch remains available.
+- No sample-based vinyl loops, oversampled saturation, automatic tempo-ramp crossfading, adjustable module order, surround sound or signed installer are provided in this build.
+- JUCE 9 licensing is dual AGPLv3/commercial. Review the upstream licensing before distributing a proprietary commercial plugin.
+
+## Next listening tests
+
+Compare original and processed audio at equal loudness. Check piano, drum breaks, sampled loops, synth pads, vocals and bass in FL Studio. Assess unwanted clicks, noise at silence, gain compensation, reverb buildup, large transport BPM changes and the sound of each model. Screenshot the plugin editor if any controls are clipped at your screen's macOS display scaling.

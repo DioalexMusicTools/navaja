@@ -1,5 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
+#include <atomic>
 #include "DSP.h"
 
 class DC23AudioProcessor final : public juce::AudioProcessor {
@@ -32,12 +33,16 @@ public:
 
     // Called from the message thread; also supports host automation.
     void applyFactoryPreset(int index);
+    float getHostBpm() const noexcept { return hostBpm.load(std::memory_order_relaxed); }
+    float getOutputPeak() const noexcept { return outputPeak.load(std::memory_order_relaxed); }
     juce::AudioProcessorValueTreeState parameters;
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeParameterLayout();
     float read(const char* id) const noexcept;
     dc23::Engine engine;
+    std::atomic<float> hostBpm {120.0f};
+    std::atomic<float> outputPeak {0.0f};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DC23AudioProcessor)
 };

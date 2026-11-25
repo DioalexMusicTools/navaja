@@ -1,5 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "FactoryPresets.h"
+#include "Timing.h"
 #include <array>
 #include <memory>
 
@@ -12,8 +14,8 @@ std::unique_ptr<APF> param(const char* id, const char* name,
     return std::make_unique<APF>(juce::ParameterID(id, 1), name,
                                  juce::NormalisableRange<float>(low, high), initial);
 }
-std::unique_ptr<APB> toggle(const char* id, const char* name) {
-    return std::make_unique<APB>(juce::ParameterID(id, 1), name, true);
+std::unique_ptr<APB> toggle(const char* id, const char* name, bool defaultState = true) {
+    return std::make_unique<APB>(juce::ParameterID(id, 1), name, defaultState);
 }
 }
 
@@ -25,51 +27,59 @@ DC23AudioProcessor::DC23AudioProcessor()
 
 juce::AudioProcessorValueTreeState::ParameterLayout DC23AudioProcessor::makeParameterLayout() {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
-    layout.add(param("noise", "Noise", 0, 1, 0.15f));
-    layout.add(param("wobble", "Wobble", 0, 1, 0.20f));
-    layout.add(param("distort", "Distort", 0, 1, 0.15f));
-    layout.add(param("digital", "Digital", 0, 1, 0.0f));
-    layout.add(param("space", "Space", 0, 1, 0.10f));
-    layout.add(param("magnetic", "Magnetic", 0, 1, 0.10f));
+    // Explicit engineering units; the control values in FL Studio are meaningful.
+    layout.add(param("noise", "Noise Amount", 0, 100, 0));
+    layout.add(param("wobble", "Wobble Amount", 0, 100, 0));
+    layout.add(param("distort", "Distort Amount", 0, 100, 0));
+    layout.add(param("digital", "Digital Amount", 0, 100, 0));
+    layout.add(param("space", "Space Amount", 0, 100, 0));
+    layout.add(param("magnetic", "Magnetic Amount", 0, 100, 0));
 
-    layout.add(toggle("noiseOn", "Noise Enable"));
-    layout.add(toggle("wobbleOn", "Wobble Enable"));
-    layout.add(toggle("distortOn", "Distort Enable"));
-    layout.add(toggle("digitalOn", "Digital Enable"));
-    layout.add(toggle("spaceOn", "Space Enable"));
-    layout.add(toggle("magneticOn", "Magnetic Enable"));
+    layout.add(toggle("noiseOn", "Noise Enabled"));
+    layout.add(toggle("wobbleOn", "Wobble Enabled"));
+    layout.add(toggle("distortOn", "Distort Enabled"));
+    layout.add(toggle("digitalOn", "Digital Enabled"));
+    layout.add(toggle("spaceOn", "Space Enabled"));
+    layout.add(toggle("magneticOn", "Magnetic Enabled"));
 
-    layout.add(param("noiseColor", "Noise Color", 0, 1, 0.35f));
-    layout.add(param("wobbleRate", "Wobble Rate", 0.1f, 8.0f, 0.9f));
-    layout.add(param("distortionTone", "Drive Color", 0, 1, 0.5f));
-    layout.add(param("digitalRate", "Rate Crush", 0, 1, 0.5f));
-    layout.add(param("spaceSize", "Room Size", 0, 1, 0.5f));
-    layout.add(param("magneticSpeed", "Wear Speed", 0, 1, 0.5f));
+    layout.add(param("noiseFlux", "Noise Flux", 0, 100, 0));
+    layout.add(param("wobbleFlux", "Wobble Flux", 0, 100, 0));
+    layout.add(param("distortFlux", "Distort Flux", 0, 100, 0));
+    layout.add(param("digitalFlux", "Digital Flux", 0, 100, 0));
+    layout.add(param("spaceFlux", "Space Flux", 0, 100, 0));
+    layout.add(param("magneticFlux", "Magnetic Flux", 0, 100, 0));
 
-    // Flux changes the subtle time-variation independently for each effect.
-    layout.add(param("noiseFlux", "Noise Flux", 0, 1, 0.12f));
-    layout.add(param("wobbleFlux", "Wobble Flux", 0, 1, 0.10f));
-    layout.add(param("distortFlux", "Distort Flux", 0, 1, 0.07f));
-    layout.add(param("digitalFlux", "Digital Flux", 0, 1, 0.08f));
-    layout.add(param("spaceFlux", "Space Flux", 0, 1, 0.05f));
-    layout.add(param("magneticFlux", "Magnetic Flux", 0, 1, 0.30f));
+    layout.add(param("noiseColor", "Noise Color", 0, 100, 35));
+    layout.add(param("wobbleRate", "Wobble Rate Hz", 0.10f, 8.0f, 0.9f));
+    layout.add(param("distortionTone", "Distortion Tone", 0, 100, 50));
+    layout.add(param("digitalRate", "Digital Crush", 0, 100, 50));
+    layout.add(param("digitalSmooth", "Digital Smooth", 0, 100, 55));
+    layout.add(param("spaceSize", "Reverb Decay ms", 150, 4000, 1200));
+    layout.add(param("magneticSpeed", "Drop Interval ms", 60, 750, 310));
+
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID("noiseStyle", 1), "Noise Texture",
-        juce::StringArray {"Tape", "Vinyl", "Hum"}, 0));
+        juce::StringArray{"Tape", "Vinyl", "Hum"}, 0));
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID("distortionStyle", 1), "Distortion Character",
-        juce::StringArray {"Tape", "Valve", "Fuzz"}, 0));
-    layout.add(param("digitalSmooth", "Digital Smooth", 0, 1, 0.55f));
-    layout.add(param("width", "Stereo Width", 0, 2, 1.0f));
-    layout.add(param("echoMix", "Echo Mix", 0, 1, 0.0f));
-    layout.add(param("echoTimeMs", "Echo Time", 90, 900, 290.0f));
-    layout.add(param("echoFeedback", "Echo Feedback", 0, 0.8f, 0.35f));
+        juce::StringArray{"Tape", "Valve", "Fuzz"}, 0));
 
-    layout.add(param("magnitude", "Magnitude", 0, 1, 1.0f));
-    layout.add(param("mix", "Dry Wet", 0, 1, 1.0f));
-    layout.add(param("outputDb", "Output dB", -18.0f, 12.0f, 0.0f));
-    layout.add(param("lowCut", "Low Cut", 0, 1, 0.0f));
-    layout.add(param("highCut", "High Cut", 0, 1, 0.0f));
+    layout.add(param("magnitude", "Master Amount", 0, 100, 100));
+    // User-facing bipolar controls: -100 DRY / 0 50-50 / +100 WET.
+    layout.add(param("mix", "Master Dry Wet", -100, 100, 0));
+    layout.add(param("outputDb", "Output dB", -18, 12, 0));
+    layout.add(param("width", "Stereo Width", 0, 100, 50));
+    layout.add(param("lowCut", "Low Cut Hz", 20, 2200, 90));
+    layout.add(param("highCut", "High Cut Hz", 250, 20000, 14000));
+    layout.add(toggle("lowCutOn", "Low Cut Enabled", false));
+    layout.add(toggle("highCutOn", "High Cut Enabled", false));
+
+    layout.add(toggle("echoOn", "Echo Enabled", false));
+    layout.add(param("echoMix", "Echo Dry Wet", -100, 100, 0));
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("echoDivision", 1), "Echo Note Division",
+        juce::StringArray{"1/2", "1/4", "1/8 D", "1/8", "1/8 T", "1/16", "1/32"}, 3));
+    layout.add(param("echoFeedback", "Echo Feedback", 0, 100, 35));
     return layout;
 }
 
@@ -92,8 +102,18 @@ float DC23AudioProcessor::read(const char* id) const noexcept {
 void DC23AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) {
     juce::ScopedNoDenormals noDenormals;
     const int used = juce::jmin(buffer.getNumChannels(), getTotalNumInputChannels(), 2);
-    for (int c = used; c < buffer.getNumChannels(); ++c) buffer.clear(c, 0, buffer.getNumSamples());
-    if (used == 0) return;
+    for (int c = used; c < buffer.getNumChannels(); ++c)
+        buffer.clear(c, 0, buffer.getNumSamples());
+    if (used == 0 || buffer.getNumSamples() == 0) return;
+
+    if (auto* playHead = getPlayHead()) {
+        if (auto position = playHead->getPosition()) {
+            if (auto bpm = position->getBpm()) {
+                if (std::isfinite(*bpm) && *bpm > 0.0)
+                    hostBpm.store(static_cast<float>(*bpm), std::memory_order_relaxed);
+            }
+        }
+    }
 
     dc23::Parameters p;
     constexpr std::array<const char*, 6> amounts {
@@ -106,31 +126,40 @@ void DC23AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mi
         "noiseFlux", "wobbleFlux", "distortFlux", "digitalFlux", "spaceFlux", "magneticFlux"
     };
     for (size_t i = 0; i < amounts.size(); ++i) {
-        p.amount[i] = read(amounts[i]);
+        p.amount[i] = read(amounts[i]) * 0.01f;
         p.enabled[i] = read(toggles[i]) > 0.5f;
-        p.flux[i] = read(fluxes[i]);
+        p.flux[i] = read(fluxes[i]) * 0.01f;
     }
-    p.noiseColor = read("noiseColor");
-    p.wobbleRate = read("wobbleRate");
-    p.distortionTone = read("distortionTone");
-    p.digitalRate = read("digitalRate");
-    p.spaceSize = read("spaceSize");
-    p.magneticSpeed = read("magneticSpeed");
-    p.magnitude = read("magnitude");
-    p.mix = read("mix");
-    p.outputDb = read("outputDb");
-    p.lowCut = read("lowCut");
-    p.highCut = read("highCut");
     p.noiseStyle = static_cast<int>(read("noiseStyle"));
     p.distortionStyle = static_cast<int>(read("distortionStyle"));
-    p.digitalSmooth = read("digitalSmooth");
-    p.width = read("width");
-    p.echoMix = read("echoMix");
-    p.echoTimeMs = read("echoTimeMs");
-    p.echoFeedback = read("echoFeedback");
+    p.noiseColor = read("noiseColor") * 0.01f;
+    p.wobbleRate = read("wobbleRate");
+    p.distortionTone = read("distortionTone") * 0.01f;
+    p.digitalRate = read("digitalRate") * 0.01f;
+    p.digitalSmooth = read("digitalSmooth") * 0.01f;
+    p.spaceDecayMs = read("spaceSize");
+    p.magneticIntervalMs = read("magneticSpeed");
+    p.magnitude = read("magnitude") * 0.01f;
+    p.mix = (read("mix") + 100.0f) * 0.005f;
+    p.outputDb = read("outputDb");
+    p.width = read("width") * 0.02f;
+    p.lowCutHz = read("lowCutOn") > 0.5f ? read("lowCut") : 0.0f;
+    p.highCutHz = read("highCutOn") > 0.5f ? read("highCut") : 0.0f;
 
-    float* ptr[2] { buffer.getWritePointer(0), used > 1 ? buffer.getWritePointer(1) : nullptr };
+    p.echoMix = read("echoOn") > 0.5f
+        ? (read("echoMix") + 100.0f) * 0.005f : 0.0f;
+    p.echoFeedback = read("echoFeedback") * 0.008f;
+    p.echoTimeMs = dc23::syncedEchoMilliseconds(
+        static_cast<int>(read("echoDivision")), getHostBpm());
+
+    float* ptr[2] { buffer.getWritePointer(0),
+                    used > 1 ? buffer.getWritePointer(1) : nullptr };
     engine.process(ptr, used, buffer.getNumSamples(), p);
+
+    float peak = 0.0f;
+    for (int c = 0; c < used; ++c)
+        peak = std::max(peak, buffer.getMagnitude(c, 0, buffer.getNumSamples()));
+    outputPeak.store(std::min(peak, 2.0f), std::memory_order_relaxed);
 }
 
 void DC23AudioProcessor::getStateInformation(juce::MemoryBlock& dest) {
@@ -147,44 +176,51 @@ void DC23AudioProcessor::setStateInformation(const void* data, int size) {
 }
 
 void DC23AudioProcessor::applyFactoryPreset(int index) {
-    static constexpr std::array<std::array<float, 6>, 6> presets {{
-        {{ 0.15f, 0.20f, 0.15f, 0.0f, 0.10f, 0.10f }}, // Init
-        {{ 0.40f, 0.43f, 0.35f, 0.22f, 0.15f, 0.41f }}, // VHS Glow
-        {{ 0.45f, 0.12f, 0.48f, 0.27f, 0.33f, 0.23f }}, // Dusty Keys
-        {{ 0.08f, 0.16f, 0.64f, 0.50f, 0.12f, 0.35f }}, // Drum Wear
-        {{ 0.24f, 0.70f, 0.17f, 0.10f, 0.50f, 0.55f }}, // Tape Drift
-        {{ 0.54f, 0.21f, 0.83f, 0.86f, 0.06f, 0.68f }}  // Broken Radio
-    }};
-    if (index < 0 || index >= static_cast<int>(presets.size())) return;
-    constexpr std::array<const char*, 6> ids {
+    const auto& list = dc23::factoryPresets();
+    if (index < 0 || index >= static_cast<int>(list.size())) return;
+    const auto& p = list[static_cast<size_t>(index)];
+    auto set = [this](const char* id, float value) {
+        if (auto* par = parameters.getParameter(id)) {
+            par->beginChangeGesture();
+            par->setValueNotifyingHost(par->convertTo0to1(value));
+            par->endChangeGesture();
+        }
+    };
+    constexpr std::array<const char*, 6> amountIds {
         "noise", "wobble", "distort", "digital", "space", "magnetic"
     };
-    auto set = [this](const char* id, float value) {
-        if (auto* param = parameters.getParameter(id))
-            param->setValueNotifyingHost(param->convertTo0to1(value));
-    };
-    for (size_t i = 0; i < ids.size(); ++i) set(ids[i], presets[static_cast<size_t>(index)][i]);
-    set("magnitude", 1.0f);
-    set("mix", 1.0f);
-    set("outputDb", 0.0f);
-    set("lowCut", index == 5 ? 0.28f : 0.0f);
-    set("highCut", index == 5 ? 0.58f : (index == 1 ? 0.30f : 0.0f));
     constexpr std::array<const char*, 6> fluxIds {
         "noiseFlux", "wobbleFlux", "distortFlux", "digitalFlux", "spaceFlux", "magneticFlux"
     };
-    constexpr std::array<float, 6> baseFlux { 0.12f, 0.10f, 0.07f, 0.08f, 0.05f, 0.30f };
-    for (size_t i = 0; i < fluxIds.size(); ++i) {
-        const float dramatic = (index == 4 || index == 5) ? 0.34f : 0.10f;
-        set(fluxIds[i], std::clamp(baseFlux[i] + dramatic, 0.0f, 1.0f));
+    constexpr std::array<const char*, 6> enableIds {
+        "noiseOn", "wobbleOn", "distortOn", "digitalOn", "spaceOn", "magneticOn"
+    };
+    for (size_t i = 0; i < 6; ++i) {
+        set(amountIds[i], p.amount[i]);
+        set(fluxIds[i], p.flux[i]);
+        set(enableIds[i], 1.0f);
     }
-    set("noiseStyle", index == 2 ? 1.0f : (index == 5 ? 2.0f : 0.0f));
-    set("distortionStyle", index == 3 ? 1.0f : (index == 5 ? 2.0f : 0.0f));
-    set("digitalSmooth", index == 5 ? 0.1f : 0.60f);
-    set("width", index == 4 ? 1.40f : 1.0f);
-    set("echoMix", index == 4 ? 0.26f : (index == 1 ? 0.13f : 0.0f));
-    set("echoFeedback", index == 4 ? 0.45f : 0.35f);
-    set("echoTimeMs", 290.0f);
-
+    set("noiseStyle", float(p.noiseStyle));
+    set("distortionStyle", float(p.distortionStyle));
+    set("noiseColor", p.noiseColor);
+    set("wobbleRate", p.wobbleHz);
+    set("distortionTone", p.driveTone);
+    set("digitalRate", p.digitalRate);
+    set("digitalSmooth", p.digitalSmooth);
+    set("spaceSize", p.decayMs);
+    set("magneticSpeed", p.wearMs);
+    set("magnitude", p.magnitude);
+    set("mix", p.mix);
+    set("outputDb", 0.0f);
+    set("width", p.width);
+    set("lowCutOn", p.lowCutOn ? 1.0f : 0.0f);
+    set("highCutOn", p.highCutOn ? 1.0f : 0.0f);
+    set("lowCut", p.lowCutHz);
+    set("highCut", p.highCutHz);
+    set("echoOn", p.echoOn ? 1.0f : 0.0f);
+    set("echoMix", p.echoMix);
+    set("echoDivision", float(p.division));
+    set("echoFeedback", p.feedback);
 }
 
 juce::AudioProcessorEditor* DC23AudioProcessor::createEditor() {

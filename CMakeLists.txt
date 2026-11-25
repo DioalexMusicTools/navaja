@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(DC23 VERSION 0.2.0 LANGUAGES C CXX)
+project(DC23 VERSION 0.3.0 LANGUAGES C CXX)
 
 option(DC23_BUILD_PLUGIN "Build the JUCE plug-in" ON)
 
@@ -36,7 +36,7 @@ if(DC23_BUILD_PLUGIN)
     target_sources(DC23Plugin PRIVATE
         Source/PluginProcessor.cpp Source/PluginProcessor.h
         Source/PluginEditor.cpp Source/PluginEditor.h
-        Source/DSP.h)
+        Source/DSP.h Source/FactoryPresets.h Source/Timing.h)
     target_compile_features(DC23Plugin PRIVATE cxx_std_17)
     target_compile_definitions(DC23Plugin PUBLIC
         JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)

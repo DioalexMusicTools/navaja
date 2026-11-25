@@ -1,5 +1,5 @@
 #pragma once
-// DC-23 DSP v0.2: original, portable, allocation-free on the audio thread.
+// DC-23 DSP v0.3: original, portable, allocation-free on the audio thread.
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -25,10 +25,10 @@ struct Parameters {
     int distortionStyle = 0;       // 0 tape, 1 valve, 2 fuzz
     float digitalRate = 0.5f;
     float digitalSmooth = 0.55f;
-    float spaceSize = 0.5f;
-    float magneticSpeed = 0.5f;
-    float lowCut = 0.0f;
-    float highCut = 0.0f;
+    float spaceDecayMs = 1200.0f;
+    float magneticIntervalMs = 310.0f;
+    float lowCutHz = 0.0f;
+    float highCutHz = 0.0f;
     float width = 1.0f;            // 0 mono, 1 unmodified, 2 extra wide
     float echoMix = 0.0f;
     float echoTimeMs = 290.0f;
@@ -42,7 +42,7 @@ public:
         for (int c = 0; c != 2; ++c) {
             auto& ch = channels[static_cast<size_t>(c)];
             ch.wow.assign(static_cast<size_t>(rate * 0.055f) + 16u, 0.0f);
-            ch.echo.assign(static_cast<size_t>(rate * 1.2f) + 16u, 0.0f);
+            ch.echo.assign(static_cast<size_t>(rate * 4.1f) + 16u, 0.0f);
             constexpr float combTimes[] = {0.0297f, 0.0371f, 0.0411f, 0.0437f};
             for (size_t k = 0; k != 4; ++k)
                 ch.combs[k].assign(static_cast<size_t>(rate * (combTimes[k] + c * 0.0011f)) + 1u, 0.0f);
@@ -86,15 +86,21 @@ public:
         const float echoGoal = limit(p.echoMix) * limit(p.magnitude);
         const float gainGoal = std::pow(10.0f, std::clamp(p.outputDb, -18.0f, 12.0f) / 20.0f);
         const float widthGoal = std::clamp(p.width, 0.0f, 2.0f);
-        const float echoDelayGoal = rate * std::clamp(p.echoTimeMs, 90.0f, 900.0f) / 1000.0f;
+        const float echoDelayGoal = rate * std::clamp(p.echoTimeMs, 50.0f, 4000.0f) / 1000.0f;
         const float echoFeedback = std::clamp(p.echoFeedback, 0.0f, 0.8f);
-        const float hpHz = 25.0f + 1800.0f * limit(p.lowCut) * limit(p.lowCut);
-        const float lpHz = std::clamp(19000.0f - 18100.0f * limit(p.highCut) * limit(p.highCut),
-                                     250.0f, 0.45f * rate);
+        const float hpHz = std::clamp(p.lowCutHz, 20.0f, 2200.0f);
+        const float lpHz = std::clamp(p.highCutHz, 250.0f, 20000.0f);
         const float hpA = std::exp(-2.0f * pi * std::min(hpHz, 0.45f * rate) / rate);
         const float lpA = std::exp(-2.0f * pi * lpHz / rate);
         const float wobbleRate = std::clamp(p.wobbleRate, 0.1f, 8.0f);
-        const float spaceDecay = 0.43f + 0.36f * limit(p.spaceSize);
+        // T60 calibration for each comb delay: a repeat drops to -60dB in decayMs.
+        std::array<std::array<float, 4>, 2> combFeedback {};
+        const float reverbT60 = std::clamp(p.spaceDecayMs, 150.0f, 4000.0f) * 0.001f;
+        for (int c = 0; c < channelsUsed; ++c)
+            for (size_t k = 0; k < 4; ++k) {
+                const float delaySec = float(channels[size_t(c)].combs[k].size()) / rate;
+                combFeedback[size_t(c)][k] = std::pow(0.001f, delaySec / reverbT60);
+            }
         const int noiseStyle = std::clamp(p.noiseStyle, 0, 2);
         const int distortionStyle = std::clamp(p.distortionStyle, 0, 2);
 
@@ -206,7 +212,7 @@ public:
                     const size_t pos = ch.combPos[k];
                     const float previous = comb[pos];
                     ch.combDamp[k] = ch.combDamp[k] * 0.32f + previous * 0.68f;
-                    comb[pos] = std::clamp(x + ch.combDamp[k] * spaceDecay, -4.0f, 4.0f);
+                    comb[pos] = std::clamp(x + ch.combDamp[k] * combFeedback[size_t(c)][k], -4.0f, 4.0f);
                     reflected += previous;
                     ch.combPos[k] = (pos + 1u) % comb.size();
                 }
@@ -228,7 +234,7 @@ public:
                         ? 1.0f - depth[5] * (0.25f + 0.7f * random01())
                         : 1.0f;
                     ch.dropSamples = std::max(1, static_cast<int>(rate *
-                        (0.05f + random01() * (0.12f + 0.35f * (1.0f - limit(p.magneticSpeed))))));
+                        (0.035f + random01() * std::clamp(p.magneticIntervalMs, 60.0f, 750.0f) * 0.001f)));
                 }
                 ch.drop += (ch.dropTarget - ch.drop) * std::min(1.0f, 45.0f / rate);
                 x *= ch.drop;
@@ -248,11 +254,11 @@ public:
                 x += ch.echoLP * (0.7f * smoothEchoMix);
 
                 // Master tone; both filters fully bypassed at zero settings.
-                if (p.lowCut > 0.00001f) {
+                if (p.lowCutHz >= 20.0f) {
                     ch.hp = hpA * ch.hp + (1.0f - hpA) * x;
                     x -= ch.hp;
                 } else ch.hp = x;
-                if (p.highCut > 0.00001f) {
+                if (p.highCutHz >= 250.0f) {
                     ch.lp = lpA * ch.lp + (1.0f - lpA) * x;
                     x = ch.lp;
                 } else ch.lp = x;
