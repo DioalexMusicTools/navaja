@@ -2,7 +2,7 @@ name: DC-23 macOS VST3
 
 on:
   push:
-    branches: ["dc23-vst3", "main"]
+    branches: ["dc23-vst3", "dc23-v2", "main"]
   pull_request:
   workflow_dispatch:
 

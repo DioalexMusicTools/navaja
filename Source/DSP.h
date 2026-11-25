@@ -1,6 +1,5 @@
 #pragma once
-
-// Original JUCE-independent DC-23 DSP. All allocations happen in prepare().
+// DC-23 DSP v0.2: original, portable, allocation-free on the audio thread.
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -10,204 +9,300 @@
 
 namespace dc23 {
 constexpr float pi = 3.14159265358979323846f;
-inline float clamp01(float v) noexcept { return std::clamp(v, 0.0f, 1.0f); }
+inline float limit(float v) noexcept { return std::clamp(v, 0.0f, 1.0f); }
 
 struct Parameters {
-    std::array<float, 6> amount {{ 0.15f, 0.2f, 0.15f, 0.0f, 0.10f, 0.10f }};
-    std::array<bool, 6> enabled {{ true, true, true, true, true, true }};
+    std::array<float, 6> amount {{0.15f, 0.20f, 0.15f, 0.0f, 0.10f, 0.10f}};
+    std::array<bool, 6> enabled {{true, true, true, true, true, true}};
+    std::array<float, 6> flux {{0.12f, 0.10f, 0.07f, 0.08f, 0.05f, 0.30f}};
     float magnitude = 1.0f;
     float mix = 1.0f;
     float outputDb = 0.0f;
     float noiseColor = 0.35f;
+    int noiseStyle = 0;             // 0 tape, 1 vinyl, 2 mains hum
     float wobbleRate = 0.9f;
     float distortionTone = 0.5f;
+    int distortionStyle = 0;       // 0 tape, 1 valve, 2 fuzz
     float digitalRate = 0.5f;
+    float digitalSmooth = 0.55f;
     float spaceSize = 0.5f;
     float magneticSpeed = 0.5f;
     float lowCut = 0.0f;
     float highCut = 0.0f;
+    float width = 1.0f;            // 0 mono, 1 unmodified, 2 extra wide
+    float echoMix = 0.0f;
+    float echoTimeMs = 290.0f;
+    float echoFeedback = 0.35f;
 };
 
 class Engine {
 public:
-    void prepare(double newSampleRate) {
-        rate = std::max(8000.0f, static_cast<float>(newSampleRate));
-        for (int c = 0; c < 2; ++c) {
+    void prepare(double sampleRate) {
+        rate = std::max(8000.0f, static_cast<float>(sampleRate));
+        for (int c = 0; c != 2; ++c) {
             auto& ch = channels[static_cast<size_t>(c)];
-            ch.wowDelay.assign(static_cast<size_t>(rate * 0.065f) + 8u, 0.0f);
-            const float lengths[3] = { 0.037f, 0.053f, 0.071f };
-            for (int k = 0; k < 3; ++k)
-                ch.reverb[static_cast<size_t>(k)].assign(
-                    static_cast<size_t>(rate * (lengths[k] + c * 0.0017f)) + 1u, 0.0f);
+            ch.wow.assign(static_cast<size_t>(rate * 0.055f) + 16u, 0.0f);
+            ch.echo.assign(static_cast<size_t>(rate * 1.2f) + 16u, 0.0f);
+            constexpr float combTimes[] = {0.0297f, 0.0371f, 0.0411f, 0.0437f};
+            for (size_t k = 0; k != 4; ++k)
+                ch.combs[k].assign(static_cast<size_t>(rate * (combTimes[k] + c * 0.0011f)) + 1u, 0.0f);
+            ch.allpass[0].assign(static_cast<size_t>(rate * (0.005f + c * 0.0004f)) + 1u, 0.0f);
+            ch.allpass[1].assign(static_cast<size_t>(rate * (0.0017f + c * 0.0002f)) + 1u, 0.0f);
         }
         reset();
     }
 
     void reset() noexcept {
         for (auto& ch : channels) {
-            std::fill(ch.wowDelay.begin(), ch.wowDelay.end(), 0.0f);
-            for (auto& comb : ch.reverb) std::fill(comb.begin(), comb.end(), 0.0f);
-            ch.wowWrite = 0;
-            ch.revWrite = {{0, 0, 0}};
-            ch.revDamped = {{0.0f, 0.0f, 0.0f}};
-            ch.noiseLP = ch.hpMemory = ch.lpMemory = 0.0f;
-            ch.held = 0.0f;
-            ch.holdCounter = 0;
-            ch.dropCounter = 0;
-            ch.dropTarget = ch.dropLevel = 1.0f;
+            std::fill(ch.wow.begin(), ch.wow.end(), 0.0f);
+            std::fill(ch.echo.begin(), ch.echo.end(), 0.0f);
+            for (auto& buf : ch.combs) std::fill(buf.begin(), buf.end(), 0.0f);
+            for (auto& buf : ch.allpass) std::fill(buf.begin(), buf.end(), 0.0f);
+            ch.wowWrite = ch.echoWrite = 0;
+            ch.combPos.fill(0); ch.allpassPos.fill(0);
+            ch.combDamp.fill(0.0f);
+            ch.noiseLP = ch.crackle = ch.humPhase = ch.toneMemory = 0.0f;
+            ch.digitalLP = ch.hp = ch.lp = ch.echoLP = 0.0f;
+            ch.held = 0.0f; ch.holdSamples = 0;
+            ch.dropSamples = 0; ch.drop = ch.dropTarget = 1.0f;
         }
-        smoothed.fill(0.0f);
+        smoothAmount.fill(0.0f); fluxTarget.fill(0.0f); fluxDrift.fill(0.0f);
+        fluxSamples = 0;
         wowPhase = flutterPhase = 0.0f;
+        smoothMix = 0.0f; smoothEchoMix = 0.0f;
+        smoothGain = 1.0f; smoothWidth = 1.0f;
+        smoothEchoDelay = rate * 0.29f;
         rng = 0x6923a91bu;
     }
 
-    void process(float* const* data, int channelCount, int sampleCount, const Parameters& p) noexcept {
-        if (sampleCount <= 0 || data == nullptr) return;
-        channelCount = std::clamp(channelCount, 0, 2);
-        if (channelCount == 0) return;
+    void process(float* const* data, int channelsUsed, int samples, const Parameters& p) noexcept {
+        if (!data || samples <= 0 || channelsUsed <= 0) return;
+        channelsUsed = std::clamp(channelsUsed, 0, 2);
+        if (channels[0].wow.empty()) return;
+
+        const float fastSlew = std::min(1.0f, 1.0f / (0.015f * rate));
+        const float slowSlew = std::min(1.0f, 1.0f / (0.2f * rate));
+        const float mixGoal = limit(p.mix);
+        const float echoGoal = limit(p.echoMix) * limit(p.magnitude);
+        const float gainGoal = std::pow(10.0f, std::clamp(p.outputDb, -18.0f, 12.0f) / 20.0f);
+        const float widthGoal = std::clamp(p.width, 0.0f, 2.0f);
+        const float echoDelayGoal = rate * std::clamp(p.echoTimeMs, 90.0f, 900.0f) / 1000.0f;
+        const float echoFeedback = std::clamp(p.echoFeedback, 0.0f, 0.8f);
+        const float hpHz = 25.0f + 1800.0f * limit(p.lowCut) * limit(p.lowCut);
+        const float lpHz = std::clamp(19000.0f - 18100.0f * limit(p.highCut) * limit(p.highCut),
+                                     250.0f, 0.45f * rate);
+        const float hpA = std::exp(-2.0f * pi * std::min(hpHz, 0.45f * rate) / rate);
+        const float lpA = std::exp(-2.0f * pi * lpHz / rate);
+        const float wobbleRate = std::clamp(p.wobbleRate, 0.1f, 8.0f);
+        const float spaceDecay = 0.43f + 0.36f * limit(p.spaceSize);
+        const int noiseStyle = std::clamp(p.noiseStyle, 0, 2);
+        const int distortionStyle = std::clamp(p.distortionStyle, 0, 2);
 
         std::array<float, 6> targets {};
         for (size_t n = 0; n < targets.size(); ++n)
-            targets[n] = clamp01(p.amount[n]) * (p.enabled[n] ? 1.0f : 0.0f) * clamp01(p.magnitude);
+            targets[n] = limit(p.amount[n]) * (p.enabled[n] ? 1.0f : 0.0f) * limit(p.magnitude);
 
-        const float slew = std::min(1.0f, 1.0f / (0.008f * rate));
-        const float mix = clamp01(p.mix);
-        const float outputGain = std::pow(10.0f, std::clamp(p.outputDb, -30.0f, 18.0f) / 20.0f);
-        const float hpFreq = 25.0f + 1700.0f * p.lowCut * p.lowCut;
-        const float lpFreq = std::clamp(19000.0f - 17500.0f * p.highCut * p.highCut, 200.0f, 0.45f * rate);
-        const float hpA = std::exp(-2.0f * pi * std::min(hpFreq, rate * 0.45f) / rate);
-        const float lpA = std::exp(-2.0f * pi * lpFreq / rate);
-        const float wowAdvance = 2.0f * pi * std::clamp(p.wobbleRate, 0.1f, 8.0f) / rate;
-        const float flutterAdvance = 2.0f * pi * (9.0f + 2.0f * clamp01(p.magneticSpeed)) / rate;
-
-        for (int i = 0; i < sampleCount; ++i) {
-            for (size_t n = 0; n < targets.size(); ++n)
-                smoothed[n] += (targets[n] - smoothed[n]) * slew;
+        for (int i = 0; i < samples; ++i) {
+            if (--fluxSamples <= 0) {
+                for (float& target : fluxTarget) target = randomSigned();
+                fluxSamples = std::max(1, static_cast<int>(rate * 0.13f));
+            }
+            std::array<float, 6> depth {};
+            for (size_t n = 0; n < 6; ++n) {
+                fluxDrift[n] += (fluxTarget[n] - fluxDrift[n]) * slowSlew;
+                const float animated = targets[n] * (1.0f + 0.6f * limit(p.flux[n]) * fluxDrift[n]);
+                smoothAmount[n] += (limit(animated) - smoothAmount[n]) * fastSlew;
+                depth[n] = smoothAmount[n];
+            }
+            smoothMix += (mixGoal - smoothMix) * fastSlew;
+            smoothEchoMix += (echoGoal - smoothEchoMix) * fastSlew;
+            smoothGain += (gainGoal - smoothGain) * fastSlew;
+            smoothWidth += (widthGoal - smoothWidth) * fastSlew;
+            smoothEchoDelay += (echoDelayGoal - smoothEchoDelay) * fastSlew;
 
             const float slowLfo = std::sin(wowPhase);
-            const float fastLfo = std::sin(flutterPhase);
-            wowPhase += wowAdvance;
-            flutterPhase += flutterAdvance;
+            const float flutter = std::sin(flutterPhase);
+            wowPhase += 2.0f * pi * wobbleRate / rate;
+            flutterPhase += 2.0f * pi * (9.4f + wobbleRate * 0.3f) / rate;
             if (wowPhase >= 2.0f * pi) wowPhase -= 2.0f * pi;
             if (flutterPhase >= 2.0f * pi) flutterPhase -= 2.0f * pi;
 
-            for (int c = 0; c < channelCount; ++c) {
+            float wet[2] {0.0f, 0.0f};
+            float dry[2] {0.0f, 0.0f};
+            for (int c = 0; c < channelsUsed; ++c) {
                 auto& ch = channels[static_cast<size_t>(c)];
-                const float dry = data[c][i];
-                float x = dry;
+                dry[c] = data[c][i];
+                float x = dry[c];
 
-                // Tape hiss / filtered dust.
+                // Noise models: tape hiss, intermittent vinyl crackles or electronic hum.
                 const float white = randomSigned();
-                ch.noiseLP = 0.975f * ch.noiseLP + 0.025f * white;
-                const float n = (1.0f - clamp01(p.noiseColor)) * white
-                              + (4.0f * clamp01(p.noiseColor)) * ch.noiseLP;
-                x += n * (0.085f * smoothed[0] * smoothed[0]);
-
-                // Wow and flutter: continuously updated fractional-delay line.
-                ch.wowDelay[ch.wowWrite] = x;
-                if (smoothed[1] > 0.00001f) {
-                    const float modulation = 0.0015f * slowLfo + 0.00018f * fastLfo;
-                    const float seconds = 0.008f + smoothed[1] * modulation;
-                    const float delaySamples = seconds * rate;
-                    float read = static_cast<float>(ch.wowWrite) - delaySamples;
-                    const auto size = static_cast<float>(ch.wowDelay.size());
-                    while (read < 0.0f) read += size;
-                    const size_t a = static_cast<size_t>(read);
-                    const size_t b = (a + 1u) % ch.wowDelay.size();
-                    const float frac = read - static_cast<float>(a);
-                    const float warped = ch.wowDelay[a] * (1.0f - frac) + ch.wowDelay[b] * frac;
-                    x = x + (warped - x) * smoothed[1];
+                ch.noiseLP += 0.035f * (white - ch.noiseLP);
+                const float tone = limit(p.noiseColor);
+                const float hiss = (1.0f - tone) * white + tone * 3.0f * ch.noiseLP;
+                float texture = hiss;
+                if (noiseStyle == 1) {
+                    if (random01() < 0.00009f) ch.crackle = (randomSigned() * 0.9f);
+                    ch.crackle *= 0.91f;
+                    texture = 0.15f * hiss + ch.crackle;
+                } else if (noiseStyle == 2) {
+                    ch.humPhase += 2.0f * pi * 60.0f / rate;
+                    if (ch.humPhase >= 2.0f * pi) ch.humPhase -= 2.0f * pi;
+                    texture = 0.75f * std::sin(ch.humPhase) +
+                              0.25f * std::sin(ch.humPhase * 2.0f) + hiss * 0.08f;
                 }
-                ch.wowWrite = (ch.wowWrite + 1u) % ch.wowDelay.size();
+                x += texture * 0.095f * depth[0] * depth[0];
 
-                // Nonlinear, gain-compensated saturation.
-                const float drive = smoothed[2];
-                const float inputGain = 1.0f + drive * (2.5f + 12.0f * clamp01(p.distortionTone));
-                const float shaped = std::tanh(x * inputGain) / std::tanh(inputGain);
-                x += (shaped - x) * drive;
+                // Tape wow/flutter: fractional delay and smooth amount transitions.
+                ch.wow[ch.wowWrite] = x;
+                const float modSeconds = (0.0021f * slowLfo + 0.00023f * flutter) * depth[1];
+                const float delaySamples = rate * (0.0065f + modSeconds);
+                float read = static_cast<float>(ch.wowWrite) - delaySamples;
+                const auto wowSize = static_cast<float>(ch.wow.size());
+                while (read < 0.0f) read += wowSize;
+                const size_t a = static_cast<size_t>(read);
+                const size_t b = (a + 1u) % ch.wow.size();
+                const float fraction = read - static_cast<float>(a);
+                const float warped = ch.wow[a] * (1.0f - fraction) + ch.wow[b] * fraction;
+                x += (warped - x) * depth[1];
+                ch.wowWrite = (ch.wowWrite + 1u) % ch.wow.size();
 
-                // Sample-and-hold downsampling + amplitude bit reduction.
-                const float digital = smoothed[3];
-                const int factor = 1 + static_cast<int>(digital * (2.0f + 23.0f * clamp01(p.digitalRate)));
-                if (--ch.holdCounter <= 0) {
+                // Three original distortion curves: tape soft-knee, asymmetric valve, fuzz.
+                const float d = depth[2];
+                if (d > 0.00001f) {
+                    const float gain = 1.0f + d * (2.0f + 12.0f * limit(p.distortionTone));
+                    ch.toneMemory += (x - ch.toneMemory) * (0.3f + 0.6f * (1.0f - limit(p.distortionTone)));
+                    const float pre = ch.toneMemory;
+                    float shaped = 0.0f;
+                    if (distortionStyle == 0) {
+                        shaped = std::tanh(pre * gain) / std::tanh(gain);
+                    } else if (distortionStyle == 1) {
+                        const float y = pre * gain + 0.28f;
+                        shaped = (std::tanh(y) - std::tanh(0.28f)) / std::tanh(gain);
+                    } else {
+                        shaped = std::clamp(pre * gain, -0.72f, 0.72f) * (1.0f / 0.72f);
+                    }
+                    x += (shaped - x) * d;
+                } else {
+                    ch.toneMemory = x;
+                }
+
+                // Sample-and-hold plus variable bit reduction with controllable smoothing.
+                const float digital = depth[3];
+                const int factor = 1 + static_cast<int>(digital * (2.0f + 29.0f * limit(p.digitalRate)));
+                if (--ch.holdSamples <= 0) {
                     ch.held = x;
-                    ch.holdCounter = factor;
+                    ch.holdSamples = factor;
                 }
-                const float steps = std::pow(2.0f, 15.0f - 11.0f * digital);
+                const float steps = std::exp2(15.0f - 12.0f * digital);
                 const float crushed = std::round(ch.held * steps) / steps;
-                x += (crushed - x) * digital;
+                const float digitalA = 1.0f - limit(p.digitalSmooth) * 0.82f;
+                ch.digitalLP += digitalA * (crushed - ch.digitalLP);
+                x += (ch.digitalLP - x) * digital;
 
-                // Three damped feedback combs: light compact stereo ambience.
-                float reflections = 0.0f;
-                for (size_t k = 0; k < 3; ++k) {
-                    auto& comb = ch.reverb[k];
-                    const size_t idx = ch.revWrite[k];
-                    const float delayed = comb[idx];
-                    ch.revDamped[k] = ch.revDamped[k] * 0.43f + delayed * 0.57f;
-                    comb[idx] = std::clamp(x + ch.revDamped[k] *
-                        (0.43f + 0.37f * clamp01(p.spaceSize)), -4.0f, 4.0f);
-                    reflections += delayed;
-                    ch.revWrite[k] = (idx + 1u) % comb.size();
+                // Diffuse reverb: four damped parallel combs, two all-pass diffusion stages.
+                float reflected = 0.0f;
+                for (size_t k = 0; k < 4; ++k) {
+                    auto& comb = ch.combs[k];
+                    const size_t pos = ch.combPos[k];
+                    const float previous = comb[pos];
+                    ch.combDamp[k] = ch.combDamp[k] * 0.32f + previous * 0.68f;
+                    comb[pos] = std::clamp(x + ch.combDamp[k] * spaceDecay, -4.0f, 4.0f);
+                    reflected += previous;
+                    ch.combPos[k] = (pos + 1u) % comb.size();
                 }
-                x = x * (1.0f - 0.28f * smoothed[4]) + reflections * (0.18f * smoothed[4]);
+                reflected *= 0.25f;
+                for (size_t k = 0; k < 2; ++k) {
+                    auto& ap = ch.allpass[k];
+                    const size_t pos = ch.allpassPos[k];
+                    const float delayed = ap[pos];
+                    const float out = delayed - 0.55f * reflected;
+                    ap[pos] = reflected + 0.55f * out;
+                    reflected = out;
+                    ch.allpassPos[k] = (pos + 1u) % ap.size();
+                }
+                x = x * (1.0f - 0.12f * depth[4]) + reflected * (0.45f * depth[4]);
 
-                // Magnetic wear: gently smoothed stochastic dropouts.
-                if (--ch.dropCounter <= 0) {
-                    const float decision = random01();
-                    ch.dropTarget = (decision > 0.60f)
-                        ? 1.0f - smoothed[5] * (0.15f + 0.78f * random01())
+                // Magnetic wear: random dropouts with soft attack/recovery.
+                if (--ch.dropSamples <= 0) {
+                    ch.dropTarget = random01() > 0.57f
+                        ? 1.0f - depth[5] * (0.25f + 0.7f * random01())
                         : 1.0f;
-                    ch.dropCounter = std::max(1, static_cast<int>(
-                        rate * (0.03f + random01() * (0.10f + 0.40f * (1.0f - clamp01(p.magneticSpeed))))));
+                    ch.dropSamples = std::max(1, static_cast<int>(rate *
+                        (0.05f + random01() * (0.12f + 0.35f * (1.0f - limit(p.magneticSpeed))))));
                 }
-                ch.dropLevel += (ch.dropTarget - ch.dropLevel) * std::min(1.0f, 38.0f / rate);
-                x *= ch.dropLevel;
+                ch.drop += (ch.dropTarget - ch.drop) * std::min(1.0f, 45.0f / rate);
+                x *= ch.drop;
 
-                // End-of-chain focus filters; zero parameter really bypasses.
+                // Echo: rolling, gently filtered tape repeats; original DSP, not RC-20 code.
+                const auto echoSize = static_cast<float>(ch.echo.size());
+                float echoRead = static_cast<float>(ch.echoWrite) - smoothEchoDelay;
+                while (echoRead < 0.0f) echoRead += echoSize;
+                const size_t eA = static_cast<size_t>(echoRead);
+                const size_t eB = (eA + 1u) % ch.echo.size();
+                const float ef = echoRead - static_cast<float>(eA);
+                const float echoSample = ch.echo[eA] * (1.0f - ef) + ch.echo[eB] * ef;
+                ch.echoLP += 0.25f * (echoSample - ch.echoLP);
+                ch.echo[ch.echoWrite] = std::clamp(x + std::tanh(ch.echoLP) * echoFeedback,
+                                                   -3.0f, 3.0f);
+                ch.echoWrite = (ch.echoWrite + 1u) % ch.echo.size();
+                x += ch.echoLP * (0.7f * smoothEchoMix);
+
+                // Master tone; both filters fully bypassed at zero settings.
                 if (p.lowCut > 0.00001f) {
-                    ch.hpMemory = hpA * ch.hpMemory + (1.0f - hpA) * x;
-                    x -= ch.hpMemory;
-                } else {
-                    ch.hpMemory = x;
-                }
+                    ch.hp = hpA * ch.hp + (1.0f - hpA) * x;
+                    x -= ch.hp;
+                } else ch.hp = x;
                 if (p.highCut > 0.00001f) {
-                    ch.lpMemory = lpA * ch.lpMemory + (1.0f - lpA) * x;
-                    x = ch.lpMemory;
-                } else {
-                    ch.lpMemory = x;
-                }
+                    ch.lp = lpA * ch.lp + (1.0f - lpA) * x;
+                    x = ch.lp;
+                } else ch.lp = x;
+                wet[c] = x;
+            }
 
-                const float result = (dry + (x - dry) * mix) * outputGain;
-                data[c][i] = std::isfinite(result) ? result : 0.0f;
+            // Mid/side only for stereo; preserve mono signal exactly.
+            if (channelsUsed == 2) {
+                const float mid = 0.5f * (wet[0] + wet[1]);
+                const float side = 0.5f * (wet[0] - wet[1]) * smoothWidth;
+                wet[0] = mid + side;
+                wet[1] = mid - side;
+            }
+            for (int c = 0; c < channelsUsed; ++c) {
+                const float out = (dry[c] + (wet[c] - dry[c]) * smoothMix) * smoothGain;
+                data[c][i] = std::isfinite(out) ? out : 0.0f;
             }
         }
     }
 
 private:
     struct Channel {
-        std::vector<float> wowDelay;
-        size_t wowWrite = 0;
-        std::array<std::vector<float>, 3> reverb;
-        std::array<size_t, 3> revWrite {{ 0, 0, 0 }};
-        std::array<float, 3> revDamped {{ 0.0f, 0.0f, 0.0f }};
-        float noiseLP = 0.0f, hpMemory = 0.0f, lpMemory = 0.0f;
-        float held = 0.0f;
-        int holdCounter = 0, dropCounter = 0;
-        float dropTarget = 1.0f, dropLevel = 1.0f;
+        std::vector<float> wow, echo;
+        std::array<std::vector<float>, 4> combs;
+        std::array<std::vector<float>, 2> allpass;
+        size_t wowWrite = 0, echoWrite = 0;
+        std::array<size_t, 4> combPos {};
+        std::array<size_t, 2> allpassPos {};
+        std::array<float, 4> combDamp {};
+        float noiseLP = 0.0f, crackle = 0.0f, humPhase = 0.0f;
+        float toneMemory = 0.0f, digitalLP = 0.0f;
+        float hp = 0.0f, lp = 0.0f, echoLP = 0.0f;
+        float held = 0.0f; int holdSamples = 0;
+        int dropSamples = 0; float drop = 1.0f, dropTarget = 1.0f;
     };
-
     float random01() noexcept {
-        rng ^= rng << 13;
-        rng ^= rng >> 17;
-        rng ^= rng << 5;
+        rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
         return static_cast<float>(rng & 0x00ffffffu) / 16777216.0f;
     }
-    float randomSigned() noexcept { return random01() * 2.0f - 1.0f; }
+    float randomSigned() noexcept { return 2.0f * random01() - 1.0f; }
 
     float rate = 44100.0f;
     float wowPhase = 0.0f, flutterPhase = 0.0f;
+    float smoothMix = 0.0f, smoothEchoMix = 0.0f;
+    float smoothGain = 1.0f, smoothWidth = 1.0f, smoothEchoDelay = 0.0f;
+    std::array<float, 6> smoothAmount {};
+    std::array<float, 6> fluxTarget {};
+    std::array<float, 6> fluxDrift {};
+    int fluxSamples = 0;
     uint32_t rng = 0x6923a91bu;
-    std::array<float, 6> smoothed {};
     std::array<Channel, 2> channels;
 };
 } // namespace dc23

@@ -46,6 +46,25 @@ juce::AudioProcessorValueTreeState::ParameterLayout DC23AudioProcessor::makePara
     layout.add(param("spaceSize", "Room Size", 0, 1, 0.5f));
     layout.add(param("magneticSpeed", "Wear Speed", 0, 1, 0.5f));
 
+    // Flux changes the subtle time-variation independently for each effect.
+    layout.add(param("noiseFlux", "Noise Flux", 0, 1, 0.12f));
+    layout.add(param("wobbleFlux", "Wobble Flux", 0, 1, 0.10f));
+    layout.add(param("distortFlux", "Distort Flux", 0, 1, 0.07f));
+    layout.add(param("digitalFlux", "Digital Flux", 0, 1, 0.08f));
+    layout.add(param("spaceFlux", "Space Flux", 0, 1, 0.05f));
+    layout.add(param("magneticFlux", "Magnetic Flux", 0, 1, 0.30f));
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("noiseStyle", 1), "Noise Texture",
+        juce::StringArray {"Tape", "Vinyl", "Hum"}, 0));
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("distortionStyle", 1), "Distortion Character",
+        juce::StringArray {"Tape", "Valve", "Fuzz"}, 0));
+    layout.add(param("digitalSmooth", "Digital Smooth", 0, 1, 0.55f));
+    layout.add(param("width", "Stereo Width", 0, 2, 1.0f));
+    layout.add(param("echoMix", "Echo Mix", 0, 1, 0.0f));
+    layout.add(param("echoTimeMs", "Echo Time", 90, 900, 290.0f));
+    layout.add(param("echoFeedback", "Echo Feedback", 0, 0.8f, 0.35f));
+
     layout.add(param("magnitude", "Magnitude", 0, 1, 1.0f));
     layout.add(param("mix", "Dry Wet", 0, 1, 1.0f));
     layout.add(param("outputDb", "Output dB", -18.0f, 12.0f, 0.0f));
@@ -83,9 +102,13 @@ void DC23AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mi
     constexpr std::array<const char*, 6> toggles {
         "noiseOn", "wobbleOn", "distortOn", "digitalOn", "spaceOn", "magneticOn"
     };
+    constexpr std::array<const char*, 6> fluxes {
+        "noiseFlux", "wobbleFlux", "distortFlux", "digitalFlux", "spaceFlux", "magneticFlux"
+    };
     for (size_t i = 0; i < amounts.size(); ++i) {
         p.amount[i] = read(amounts[i]);
         p.enabled[i] = read(toggles[i]) > 0.5f;
+        p.flux[i] = read(fluxes[i]);
     }
     p.noiseColor = read("noiseColor");
     p.wobbleRate = read("wobbleRate");
@@ -98,6 +121,13 @@ void DC23AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mi
     p.outputDb = read("outputDb");
     p.lowCut = read("lowCut");
     p.highCut = read("highCut");
+    p.noiseStyle = static_cast<int>(read("noiseStyle"));
+    p.distortionStyle = static_cast<int>(read("distortionStyle"));
+    p.digitalSmooth = read("digitalSmooth");
+    p.width = read("width");
+    p.echoMix = read("echoMix");
+    p.echoTimeMs = read("echoTimeMs");
+    p.echoFeedback = read("echoFeedback");
 
     float* ptr[2] { buffer.getWritePointer(0), used > 1 ? buffer.getWritePointer(1) : nullptr };
     engine.process(ptr, used, buffer.getNumSamples(), p);
@@ -139,6 +169,22 @@ void DC23AudioProcessor::applyFactoryPreset(int index) {
     set("outputDb", 0.0f);
     set("lowCut", index == 5 ? 0.28f : 0.0f);
     set("highCut", index == 5 ? 0.58f : (index == 1 ? 0.30f : 0.0f));
+    constexpr std::array<const char*, 6> fluxIds {
+        "noiseFlux", "wobbleFlux", "distortFlux", "digitalFlux", "spaceFlux", "magneticFlux"
+    };
+    constexpr std::array<float, 6> baseFlux { 0.12f, 0.10f, 0.07f, 0.08f, 0.05f, 0.30f };
+    for (size_t i = 0; i < fluxIds.size(); ++i) {
+        const float dramatic = (index == 4 || index == 5) ? 0.34f : 0.10f;
+        set(fluxIds[i], std::clamp(baseFlux[i] + dramatic, 0.0f, 1.0f));
+    }
+    set("noiseStyle", index == 2 ? 1.0f : (index == 5 ? 2.0f : 0.0f));
+    set("distortionStyle", index == 3 ? 1.0f : (index == 5 ? 2.0f : 0.0f));
+    set("digitalSmooth", index == 5 ? 0.1f : 0.60f);
+    set("width", index == 4 ? 1.40f : 1.0f);
+    set("echoMix", index == 4 ? 0.26f : (index == 1 ? 0.13f : 0.0f));
+    set("echoFeedback", index == 4 ? 0.45f : 0.35f);
+    set("echoTimeMs", 290.0f);
+
 }
 
 juce::AudioProcessorEditor* DC23AudioProcessor::createEditor() {
