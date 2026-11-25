@@ -251,7 +251,8 @@ public:
                 ch.echo[ch.echoWrite] = std::clamp(x + std::tanh(ch.echoLP) * echoFeedback,
                                                    -3.0f, 3.0f);
                 ch.echoWrite = (ch.echoWrite + 1u) % ch.echo.size();
-                x += ch.echoLP * (0.7f * smoothEchoMix);
+                // Bipolar Echo Dry/Wet is a genuine crossfade, not additive echo gain.
+                x += (ch.echoLP - x) * smoothEchoMix;
 
                 // Master tone; both filters fully bypassed at zero settings.
                 if (p.lowCutHz >= 20.0f) {
