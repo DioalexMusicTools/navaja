@@ -12,6 +12,22 @@ public:
     void drawToggleButton(juce::Graphics&, juce::ToggleButton&, bool, bool) override;
 };
 
+// Draw the gear without depending on an OS font having a gear glyph.
+class DC23SettingsGear final : public juce::Button {
+public:
+    DC23SettingsGear() : juce::Button("DC-23 Settings") {}
+    void paintButton(juce::Graphics&, bool highlighted, bool down) override;
+};
+
+class DC23SettingsPanel final : public juce::Component {
+public:
+    DC23SettingsPanel();
+    void paint(juce::Graphics&) override;
+    void resized() override;
+    juce::Slider scaleControl;
+    juce::TextButton aboutButton {"ABOUT"};
+};
+
 class DC23AudioProcessorEditor final : public juce::AudioProcessorEditor,
                                         private juce::Timer {
 public:
@@ -36,6 +52,9 @@ private:
                    std::unique_ptr<SliderLink>& attachment,
                    bool bipolar = false);
     void openPreset(bool save);
+    void setInterfaceScale(int percent, bool saveSetting);
+    void showAbout();
+    juce::Rectangle<int> scaledBounds(int x, int y, int w, int h) const;
     void timerCallback() override;
     void drawModulePlot(juce::Graphics&, int index, juce::Rectangle<float> bounds);
     static juce::Rectangle<int> moduleBounds(int index);
@@ -53,6 +72,10 @@ private:
     juce::ComboBox factoryPresets, noiseStyle, distortionStyle, echoDivision;
     std::unique_ptr<ComboLink> noiseStyleLink, distortionStyleLink, echoDivisionLink;
     juce::TextButton saveButton {"SAVE"}, loadButton {"LOAD"};
+    DC23SettingsGear settingsGear;
+    DC23SettingsPanel settingsPanel;
+    int scalePercent = 100;
+    bool settingsOpen = false;
     std::unique_ptr<juce::FileChooser> chooser;
     float animation = 0.0f, meterDisplay = 0.0f;
 
