@@ -14,6 +14,12 @@ std::unique_ptr<APF> param(const char* id, const char* name,
     return std::make_unique<APF>(juce::ParameterID(id, 1), name,
                                  juce::NormalisableRange<float>(low, high), initial);
 }
+// Log-like taper makes 20–20000Hz controls usable at low frequencies.
+std::unique_ptr<APF> cutoffParam(const char* id, const char* name, float initial) {
+    return std::make_unique<APF>(juce::ParameterID(id, 1), name,
+                                 juce::NormalisableRange<float>(20.0f, 20000.0f,
+                                                               0.0f, 0.28f), initial);
+}
 std::unique_ptr<APB> toggle(const char* id, const char* name, bool defaultState = true) {
     return std::make_unique<APB>(juce::ParameterID(id, 1), name, defaultState);
 }
@@ -69,8 +75,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout DC23AudioProcessor::makePara
     layout.add(param("mix", "Master Dry Wet (%)", 0, 100, 50));
     layout.add(param("outputDb", "Output (dB)", -18, 18, 5));
     layout.add(param("width", "Stereo Width (%)", 0, 200, 100));
-    layout.add(param("lowCut", "Low Cut (Hz)", 20, 20000, 62));
-    layout.add(param("highCut", "High Cut (Hz)", 20, 20000, 8778));
+    layout.add(cutoffParam("lowCut", "Low Cut (Hz)", 62.0f));
+    layout.add(cutoffParam("highCut", "High Cut (Hz)", 8778.0f));
     layout.add(toggle("lowCutOn", "Low Cut Enabled", true));
     layout.add(toggle("highCutOn", "High Cut Enabled", true));
 
