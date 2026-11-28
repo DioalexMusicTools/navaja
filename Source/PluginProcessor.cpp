@@ -9,16 +9,43 @@ namespace {
 using APF = juce::AudioParameterFloat;
 using APB = juce::AudioParameterBool;
 
+// Make units and <= 2 decimal precision available to VST3 hosts as well as the GUI.
+juce::AudioParameterFloatAttributes valueAttributes(const char* id) {
+    const juce::String key(id);
+    juce::String suffix = "%";
+    if (key == "wobbleRate" || key == "lowCut" || key == "highCut")
+        suffix = "Hz";
+    else if (key == "magneticSpeed" || key == "spaceSize")
+        suffix = "ms";
+    else if (key == "outputDb" || key == "distortionTone")
+        suffix = "dB";
+
+    return juce::AudioParameterFloatAttributes()
+        .withLabel(suffix)
+        .withStringFromValueFunction([](float value, int) {
+            auto result = juce::String(double(value), 2);
+            while (result.containsChar('.') && result.endsWithChar('0'))
+                result = result.dropLastCharacters(1);
+            if (result.endsWithChar('.'))
+                result = result.dropLastCharacters(1);
+            return result;
+        })
+        .withValueFromStringFunction([](const juce::String& value) {
+            return value.retainCharacters("0123456789.-").getFloatValue();
+        });
+}
 std::unique_ptr<APF> param(const char* id, const char* name,
                            float low, float high, float initial) {
     return std::make_unique<APF>(juce::ParameterID(id, 1), name,
-                                 juce::NormalisableRange<float>(low, high), initial);
+                                 juce::NormalisableRange<float>(low, high),
+                                 initial, valueAttributes(id));
 }
 // Log-like taper makes 20–20000Hz controls usable at low frequencies.
 std::unique_ptr<APF> cutoffParam(const char* id, const char* name, float initial) {
     return std::make_unique<APF>(juce::ParameterID(id, 1), name,
                                  juce::NormalisableRange<float>(20.0f, 20000.0f,
-                                                               0.0f, 0.28f), initial);
+                                                               0.0f, 0.28f),
+                                 initial, valueAttributes(id));
 }
 std::unique_ptr<APB> toggle(const char* id, const char* name, bool defaultState = true) {
     return std::make_unique<APB>(juce::ParameterID(id, 1), name, defaultState);
