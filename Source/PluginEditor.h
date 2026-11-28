@@ -39,8 +39,8 @@ private:
     DioVerbLookAndFeel look;
     juce::ComboBox mode, length, tremolo;
     std::array<std::unique_ptr<ChoiceLink>, 3> choiceLinks;
-    juce::Slider size, tone, width, depth, output;
-    std::array<std::unique_ptr<KnobLink>, 5> knobLinks;
+    juce::Slider size, decay, tone, width, depth, output;
+    std::array<std::unique_ptr<KnobLink>, 6> knobLinks;
     juce::TextButton capture {"CAPTURE"};
     juce::TextButton render {"RENDER"};
     juce::TextButton preview {"PREVIEW"};
