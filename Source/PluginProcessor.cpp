@@ -69,7 +69,7 @@ void DioVerbProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Midi
     const int channels = juce::jmin(buffer.getNumChannels(),
                                    getTotalNumInputChannels(), 2);
     const int n = buffer.getNumSamples();
-    for (int c = channels; c < buffer.getNumChannels(); ++c) buffer.clear(c);
+    for (int c = channels; c < buffer.getNumChannels(); ++c) buffer.clear(c, 0, n);
     if (channels == 0 || n <= 0) return;
 
     if (auto* ph = getPlayHead()) {
