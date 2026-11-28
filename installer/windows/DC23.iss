@@ -10,7 +10,7 @@ DefaultDirName={commoncf64}\VST3
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 Uninstallable=yes
-UninstallFilesDir={autopf}\Dioalex Music Tools\DC-23
+; Keep the existing Inno uninstall log location for in-place v1.0 updates.
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -34,3 +34,4 @@ Name: "{commonprograms}\Dioalex Music Tools\Uninstall DC-23"; Filename: "{uninst
 
 [UninstallDelete]
 Type: dirifempty; Name: "{app}\DC-23.vst3"
+Type: dirifempty; Name: "{autopf}\Dioalex Music Tools\DC-23"
