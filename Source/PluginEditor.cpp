@@ -48,23 +48,90 @@ void font(juce::Graphics& g, float size, bool bold = false) {
     g.setFont(juce::Font(juce::FontOptions(size, bold
                ? juce::Font::bold : juce::Font::plain)));
 }
-juce::String hzLabel(double value) {
-    return juce::String(juce::roundToInt(value)) + " Hz";
+// One formatting function is shared by every slider readout. Trailing zeros
+// are removed, while two decimal places remain the strict upper limit.
+juce::String exactNumber(double value) {
+    auto result = juce::String(value, 2);
+    while (result.containsChar('.') && result.endsWithChar('0'))
+        result = result.dropLastCharacters(1);
+    if (result.endsWithChar('.'))
+        result = result.dropLastCharacters(1);
+    return result;
 }
 juce::String valueLabel(const juce::String& id, double value) {
-    if (id == "lowCut" || id == "highCut") return hzLabel(value);
+    if (id == "lowCut" || id == "highCut" || id == "wobbleRate")
+        return exactNumber(value) + " Hz";
     if (id == "spaceSize" || id == "magneticSpeed")
-        return juce::String(juce::roundToInt(value)) + " ms";
-    if (id == "wobbleRate") return juce::String(value, 1) + " Hz";
-    if (id == "outputDb" || id == "distortionTone") {
-        juce::String prefix = value > 0.001 ? "+" : "";
-        return prefix + juce::String(value, 1) + " dB";
-    }
-    // All % controls are 0..maximum with no bipolar +/- notation.
-    if (id == "mix" || id == "echoMix")
-        return juce::String(juce::roundToInt(value)) + "%";
-    return juce::String(juce::roundToInt(value)) + "%";
+        return exactNumber(value) + " ms";
+    if (id == "outputDb" || id == "distortionTone")
+        return (value > 0.001 ? "+" : "") + exactNumber(value) + " dB";
+    return exactNumber(value) + "%";
 }
+}
+
+void DC23SettingsGear::paintButton(juce::Graphics& g, bool hovered, bool down) {
+    const auto bounds = getLocalBounds().toFloat().reduced(1.0f);
+    g.setColour(down ? juce::Colour(0xff42336d)
+                     : hovered ? juce::Colour(0xff2c2550) : panel);
+    g.fillRoundedRectangle(bounds, 8.0f);
+    g.setColour(violet);
+    g.drawRoundedRectangle(bounds, 8.0f, 1.2f);
+    const float cx = bounds.getCentreX();
+    const float cy = bounds.getCentreY();
+    for (int i = 0; i < 8; ++i) {
+        const float angle = juce::MathConstants<float>::twoPi * float(i) / 8.0f;
+        g.drawLine(cx + std::cos(angle) * 8.5f,
+                   cy + std::sin(angle) * 8.5f,
+                   cx + std::cos(angle) * 12.8f,
+                   cy + std::sin(angle) * 12.8f, 3.1f);
+    }
+    g.drawEllipse(cx - 8.5f, cy - 8.5f, 17.0f, 17.0f, 3.0f);
+    g.fillEllipse(cx - 2.4f, cy - 2.4f, 4.8f, 4.8f);
+}
+
+DC23SettingsPanel::DC23SettingsPanel() {
+    scaleControl.setSliderStyle(juce::Slider::LinearHorizontal);
+    scaleControl.setRange(50.0, 200.0, 1.0);
+    scaleControl.setTextBoxStyle(juce::Slider::TextBoxRight, false, 78, 24);
+    scaleControl.setColour(juce::Slider::trackColourId, violet);
+    scaleControl.setColour(juce::Slider::thumbColourId, lime);
+    scaleControl.textFromValueFunction = [](double value) {
+        return juce::String(juce::roundToInt(value)) + "%";
+    };
+    scaleControl.valueFromTextFunction = [](const juce::String& text) {
+        return text.retainCharacters("0123456789.-").getDoubleValue();
+    };
+    scaleControl.setDoubleClickReturnValue(true, 100.0);
+    addAndMakeVisible(scaleControl);
+    addAndMakeVisible(aboutButton);
+}
+void DC23SettingsPanel::paint(juce::Graphics& g) {
+    const float scale = float(getWidth()) / 345.0f;
+    g.addTransform(juce::AffineTransform::scale(scale));
+    g.setColour(juce::Colour(0xff111024));
+    g.fillRoundedRectangle(juce::Rectangle<float>(1, 1, 343, 178), 12.0f);
+    g.setColour(violet);
+    g.drawRoundedRectangle(juce::Rectangle<float>(1, 1, 343, 178), 12.0f, 2.0f);
+    g.setColour(pale);
+    font(g, 17.0f, true);
+    g.drawText("SETTINGS", 18, 12, 300, 30, juce::Justification::centredLeft);
+    g.setColour(muted);
+    font(g, 12.0f);
+    g.drawText("SCALE  (50% – 200%)", 18, 48, 300, 22,
+               juce::Justification::centredLeft);
+    g.drawText("Resize the DC-23 interface", 18, 119, 305, 23,
+               juce::Justification::centredLeft);
+}
+void DC23SettingsPanel::resized() {
+    const float scale = float(getWidth()) / 345.0f;
+    auto sb = [scale](int x, int y, int w, int h) {
+        return juce::Rectangle<int>(juce::roundToInt(x * scale),
+                                    juce::roundToInt(y * scale),
+                                    juce::roundToInt(w * scale),
+                                    juce::roundToInt(h * scale));
+    };
+    scaleControl.setBounds(sb(18, 73, 306, 35));
+    aboutButton.setBounds(sb(189, 143, 135, 28));
 }
 
 DC23LookAndFeel::DC23LookAndFeel() {
@@ -217,7 +284,25 @@ DC23AudioProcessorEditor::DC23AudioProcessorEditor(DC23AudioProcessor& p)
     addAndMakeVisible(saveButton);
     addAndMakeVisible(loadButton);
 
-    setSize(1360, 799);
+    settingsGear.onClick = [this] {
+        settingsOpen = !settingsOpen;
+        settingsPanel.setVisible(settingsOpen);
+        settingsPanel.toFront(true);
+        repaint(scaledBounds(960, 154, 360, 193));
+    };
+    addAndMakeVisible(settingsGear);
+    settingsPanel.scaleControl.onValueChange = [this] {
+        setInterfaceScale(juce::roundToInt(settingsPanel.scaleControl.getValue()), true);
+    };
+    settingsPanel.aboutButton.onClick = [this] { showAbout(); };
+    addAndMakeVisible(settingsPanel);
+    settingsPanel.setVisible(false);
+    scalePercent = juce::jlimit(50, 200,
+        int(processor.parameters.state.getProperty("uiScalePercent", 100)));
+    settingsPanel.scaleControl.setValue(double(scalePercent),
+                                        juce::dontSendNotification);
+    setSize(juce::roundToInt(1360.0f * float(scalePercent) / 100.0f),
+            juce::roundToInt(799.0f * float(scalePercent) / 100.0f));
     startTimerHz(30);
 }
 
@@ -227,12 +312,40 @@ DC23AudioProcessorEditor::~DC23AudioProcessorEditor() {
     setLookAndFeel(nullptr);
 }
 
+juce::Rectangle<int> DC23AudioProcessorEditor::scaledBounds(
+        int x, int y, int w, int h) const {
+    const float factor = float(scalePercent) * 0.01f;
+    return { juce::roundToInt(float(x) * factor),
+             juce::roundToInt(float(y) * factor),
+             juce::roundToInt(float(w) * factor),
+             juce::roundToInt(float(h) * factor) };
+}
+void DC23AudioProcessorEditor::setInterfaceScale(int percent, bool saveSetting) {
+    percent = juce::jlimit(50, 200, percent);
+    if (saveSetting)
+        processor.parameters.state.setProperty("uiScalePercent", percent, nullptr);
+    if (scalePercent != percent) {
+        scalePercent = percent;
+        setSize(juce::roundToInt(1360.0f * float(percent) / 100.0f),
+                juce::roundToInt(799.0f * float(percent) / 100.0f));
+        repaint();
+    }
+}
+void DC23AudioProcessorEditor::showAbout() {
+    juce::AlertWindow::showMessageBoxAsync(
+        juce::MessageBoxIconType::InfoIcon,
+        "About DC-23",
+        "DC-23  |  Version 1.0\nVintage Color Lab\nDeveloped by Dioalex Music Tools",
+        "OK", this);
+}
+
 void DC23AudioProcessorEditor::setupKnob(
     juce::Slider& slider, const juce::String& id,
     std::unique_ptr<SliderLink>& attachment, bool bipolar) {
-    slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    // Circular controls with an explicit stop, not wrapping from max to min.
+    slider.setSliderStyle(juce::Slider::Rotary);
     slider.setRotaryParameters(juce::MathConstants<float>::pi*1.25f,
-                               juce::MathConstants<float>::pi*2.75f, false);
+                               juce::MathConstants<float>::pi*2.75f, true);
     slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 94, 20);
     slider.setMouseDragSensitivity(180);
     slider.setPopupDisplayEnabled(true, false, this);
@@ -255,9 +368,16 @@ void DC23AudioProcessorEditor::timerCallback() {
     animation += 0.105f;
     if (animation >= 1000.0f) animation -= 1000.0f;
     meterDisplay = std::max(processor.getOutputPeak(), meterDisplay * 0.86f);
-    repaint(20, 212, 1320, 87);    // animated traces only
-    repaint(1100, 80, 208, 47);    // output meter
-    repaint(210, 714, 200, 60);    // Echo BPM ms readout
+    const int saved = juce::jlimit(50, 200,
+        int(processor.parameters.state.getProperty("uiScalePercent", 100)));
+    if (saved != scalePercent) {
+        settingsPanel.scaleControl.setValue(double(saved),
+                                            juce::dontSendNotification);
+        setInterfaceScale(saved, false);
+    }
+    repaint(scaledBounds(20, 212, 1320, 87));  // animated traces
+    repaint(scaledBounds(1100, 80, 208, 47)); // output meter
+    repaint(scaledBounds(210, 714, 200, 60)); // Echo BPM
 }
 
 void DC23AudioProcessorEditor::drawModulePlot(juce::Graphics& g, int index,
@@ -321,6 +441,7 @@ void DC23AudioProcessorEditor::drawModulePlot(juce::Graphics& g, int index,
 
 void DC23AudioProcessorEditor::paint(juce::Graphics& g) {
     g.fillAll(ink);
+    g.addTransform(juce::AffineTransform::scale(float(scalePercent) * 0.01f));
     g.setColour(background);
     g.fillRoundedRectangle(juce::Rectangle<float>(12, 11, 1336, 777), 13.0f);
     g.setGradientFill(juce::ColourGradient(juce::Colour(0xff160f31), 27.0f, 20.0f,
@@ -449,33 +570,41 @@ void DC23AudioProcessorEditor::paint(juce::Graphics& g) {
 }
 
 void DC23AudioProcessorEditor::resized() {
+    auto place = [this](juce::Component& item, int x, int y, int w, int h) {
+        item.setBounds(scaledBounds(x, y, w, h));
+    };
     const std::array<juce::Slider*,3> top {{&magnitude, &mix, &output}};
     for (int i = 0; i < 3; ++i)
-        top[size_t(i)]->setBounds(360+i*139, 26, 123, 98);
-    factoryPresets.setBounds(820, 54, 275, 33);
-    saveButton.setBounds(1108, 54, 92, 33);
-    loadButton.setBounds(1207, 54, 117, 33);
+        place(*top[size_t(i)], 360+i*139, 26, 123, 98);
+    place(factoryPresets, 820, 54, 275, 33);
+    place(saveButton, 1108, 54, 92, 33);
+    place(loadButton, 1207, 54, 117, 33);
+    place(settingsGear, 1282, 22, 40, 34);
     for (int i = 0; i < 6; ++i) {
-        auto a = moduleBounds(i);
+        const auto a = moduleBounds(i);
         auto& m = modules[size_t(i)];
-        m.amount.setBounds(a.getX()+40, a.getY()+147, 129, 114);
-        m.character.setBounds(a.getX()+7, a.getY()+282, 94, 75);
-        m.flux.setBounds(a.getX()+107, a.getY()+282, 94, 75);
-        m.enabled.setBounds(a.getRight()-57, a.getY()+5, 51, 28);
+        place(m.amount, a.getX()+40, a.getY()+147, 129, 114);
+        place(m.character, a.getX()+7, a.getY()+282, 94, 75);
+        place(m.flux, a.getX()+107, a.getY()+282, 94, 75);
+        place(m.enabled, a.getRight()-57, a.getY()+5, 51, 28);
     }
-    noiseStyle.setBounds(moduleBounds(0).getX()+12, moduleBounds(0).getBottom()-32, 184, 22);
-    distortionStyle.setBounds(moduleBounds(2).getX()+12, moduleBounds(2).getBottom()-32, 184, 22);
-    digitalSmooth.setBounds(moduleBounds(3).getX()+78, moduleBounds(3).getBottom()-31, 122, 20);
-
-    echoEnabled.setBounds(576, 584, 62, 27);
-    echoMix.setBounds(59, 625, 134, 110);
-    echoDivision.setBounds(246, 675, 188, 33);
-    echoFeedback.setBounds(483, 625, 134, 110);
-    width.setBounds(700, 625, 132, 110);
-    lowCut.setBounds(915, 625, 132, 110);
-    highCut.setBounds(1132, 625, 132, 110);
-    lowEnabled.setBounds(1009, 583, 60, 26);
-    highEnabled.setBounds(1225, 583, 60, 26);
+    place(noiseStyle, moduleBounds(0).getX()+12,
+          moduleBounds(0).getBottom()-32, 184, 22);
+    place(distortionStyle, moduleBounds(2).getX()+12,
+          moduleBounds(2).getBottom()-32, 184, 22);
+    place(digitalSmooth, moduleBounds(3).getX()+78,
+          moduleBounds(3).getBottom()-31, 122, 20);
+    place(echoEnabled, 576, 584, 62, 27);
+    place(echoMix, 59, 625, 134, 110);
+    place(echoDivision, 246, 675, 188, 33);
+    place(echoFeedback, 483, 625, 134, 110);
+    place(width, 700, 625, 132, 110);
+    place(lowCut, 915, 625, 132, 110);
+    place(highCut, 1132, 625, 132, 110);
+    place(lowEnabled, 1009, 583, 60, 26);
+    place(highEnabled, 1225, 583, 60, 26);
+    place(settingsPanel, 969, 148, 345, 180);
+    settingsPanel.toFront(false);
 }
 
 void DC23AudioProcessorEditor::openPreset(bool saving) {
