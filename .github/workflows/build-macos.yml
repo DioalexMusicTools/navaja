@@ -2,7 +2,7 @@ name: DioVERB macOS VST3
 
 on:
   push:
-    branches: ["dioverb-macos"]
+    branches: ["dioverb-macos", "dioverb-v02-decay"]
   workflow_dispatch:
 
 permissions:
