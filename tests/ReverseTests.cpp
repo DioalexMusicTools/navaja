@@ -19,6 +19,32 @@ int main() {
     check(dioverb::tremoloCyclesPerBeat(dioverb::Tremolo::Sixteenth)==4.0f,
           "sixteenth tremolo rate");
 
+    // Verify Decay changes the actual feedback tail, independently of Size.
+    // This tests DSP behavior rather than merely checking an automated knob value.
+    dioverb::ReverbTank shortTank(48000, 0, 0.58f, 0.42f, 250.0f);
+    dioverb::ReverbTank longTank (48000, 0, 0.58f, 0.42f, 6000.0f);
+    dioverb::ReverbTank smallRoom(48000, 0, 0.05f, 0.42f, 2450.0f);
+    dioverb::ReverbTank largeRoom(48000, 0, 0.95f, 0.42f, 2450.0f);
+    double shortLateEnergy=0.0, longLateEnergy=0.0, sizeDifference=0.0;
+    for(int n=0;n<96000;++n) {
+        const float input = n==0 ? 1.0f : 0.0f;
+        const float shortSample=shortTank.tick(input);
+        const float longSample=longTank.tick(input);
+        const float smallSample=smallRoom.tick(input);
+        const float largeSample=largeRoom.tick(input);
+        check(std::isfinite(shortSample) && std::isfinite(longSample), "decay remains finite");
+        if(n>24000) {
+            shortLateEnergy += double(shortSample)*double(shortSample);
+            longLateEnergy += double(longSample)*double(longSample);
+        }
+        sizeDifference += std::abs(double(smallSample)-double(largeSample));
+    }
+    check(longLateEnergy > shortLateEnergy*3.0 + 1.0e-9,
+          "longer decay produces a longer audible reverberation tail");
+    check(sizeDifference > 0.005,
+          "reverb Size changes reflection geometry independently of Decay");
+
+
     const int source=48000;
     std::vector<float> l(source,0),r(source,0);
     // Audible 30 ms piano-like attack after 100ms of silence, with different stereo content.
