@@ -132,6 +132,7 @@ private:
     // Size of all delay lines chosen once during construction.
     const float sampleRate, decaySeconds, damping;
     const float sizeForBuffers = 0.65f;
+    std::array<float, 6> feedback {{0,0,0,0,0,0}};
     std::array<Delay, 6> combs;
     std::array<Delay, 2> allpasses;
 };
