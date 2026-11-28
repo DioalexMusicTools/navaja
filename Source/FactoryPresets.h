@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <cstddef>
+#include <algorithm>
 
 namespace dc23 {
 struct FactoryPreset {
@@ -13,13 +14,13 @@ struct FactoryPreset {
     int division = 3;                  // 1/8 at 120 BPM
     bool echoOn = false;
     bool lowCutOn = false, highCutOn = false;
-    float echoMix = 0.0f;             // -100 dry / 0 center / +100 wet
+    float echoMix = 0.0f;             // 0% dry / 100% wet
     float feedback = 35.0f;           // percent
-    float lowCutHz = 90.0f, highCutHz = 14000.0f;
-    float decayMs = 1200.0f, wearMs = 310.0f;
-    float magnitude = 100.0f, mix = 0.0f, width = 50.0f;
-    float noiseColor = 35.0f, wobbleHz = 0.9f, driveTone = 50.0f;
-    float digitalRate = 50.0f, digitalSmooth = 55.0f;
+    float lowCutHz = 62.0f, highCutHz = 8778.0f;
+    float decayMs = 50.0f, wearMs = 50.0f;
+    float magnitude = 100.0f, mix = 50.0f, width = 100.0f;
+    float noiseColor = 35.0f, wobbleHz = 12.0f, driveTone = 4.2f;
+    float digitalRate = 25.0f, digitalSmooth = 55.0f;
 };
 
 inline const std::array<FactoryPreset, 20>& factoryPresets() {
@@ -34,11 +35,15 @@ inline const std::array<FactoryPreset, 20>& factoryPresets() {
             p.name = name; p.category = cat;
             p.amount = amount; p.flux = flux;
             p.noiseStyle = noise; p.distortionStyle = dist;
-            p.decayMs = decayMs; p.wearMs = wearMs;
+            // Port original preset intentions into the new public v1 ranges.
+            p.decayMs = std::clamp(decayMs / 40.0f, 0.0f, 100.0f);
+            p.wearMs = std::clamp(wearMs / 7.5f, 0.0f, 100.0f);
             p.lowCutHz = lowHz; p.highCutHz = highHz;
             p.lowCutOn = lowHz > 20.0f; p.highCutOn = highHz < 20000.0f;
             p.echoOn = echo; p.division = division;
-            p.echoMix = echoMix; p.wobbleHz = wobbleHz; p.width = width;
+            p.echoMix = echo ? std::clamp((echoMix + 100.0f) * 0.5f, 0.0f, 100.0f) : 0.0f;
+            p.wobbleHz = std::clamp(6.0f + wobbleHz * 12.0f, 6.0f, 30.0f);
+            p.width = std::clamp(width * 2.0f, 0.0f, 200.0f);
             return p;
         };
         // Original designs by DC-23. No copied factory preset values or names.
@@ -65,9 +70,9 @@ inline const std::array<FactoryPreset, 20>& factoryPresets() {
             make("SLUMBER KEYS",     "KEYS",    A{32,28,19,7,58,20},  A{39,33,8,7,44,36},    1,0,3000,370,105,11000,true,2,-6,0.41f,67)
         }};
         for (auto& p : list) {
-            p.noiseColor = (p.noiseStyle == 2 ? 52.0f : 38.0f);
-            p.driveTone = (p.distortionStyle == 2 ? 69.0f : 46.0f);
-            p.digitalRate = (p.amount[3] > 40 ? 77.0f : 45.0f);
+            p.noiseColor = (p.noiseStyle == 2 ? 45.0f : 38.0f);
+            p.driveTone = (p.distortionStyle == 2 ? 4.2f : -1.0f);
+            p.digitalRate = (p.amount[3] > 40 ? 38.5f : 22.5f);
             p.digitalSmooth = (p.amount[3] > 40 ? 18.0f : 62.0f);
             p.feedback = (p.echoOn ? 42.0f : 34.0f);
         }
