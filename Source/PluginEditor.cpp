@@ -6,14 +6,14 @@
 #include <cmath>
 
 namespace {
-const juce::Colour lime(0xffb9ed48);
-const juce::Colour ink(0xff101314);
-const juce::Colour background(0xff16191b);
-const juce::Colour panel(0xff24282b);
-const juce::Colour card(0xff282d30);
-const juce::Colour pale(0xffeef1ed);
-const juce::Colour muted(0xffa5adad);
-const juce::Colour violet(0xffbc9afa);
+const juce::Colour lime(0xff24c6fa);
+const juce::Colour ink(0xff070713);
+const juce::Colour background(0xff0d0b1d);
+const juce::Colour panel(0xff18132d);
+const juce::Colour card(0xff151126);
+const juce::Colour pale(0xfff7f5ff);
+const juce::Colour muted(0xffaba5cb);
+const juce::Colour violet(0xff9560ff);
 constexpr std::array<const char*, 6> names {
     "NOISE", "WOBBLE", "DISTORT", "DIGITAL", "SPACE", "MAGNETIC"
 };
@@ -29,7 +29,7 @@ constexpr std::array<const char*, 6> characterIds {
     "spaceSize", "magneticSpeed"
 };
 constexpr std::array<const char*, 6> characterLabels {
-    "COLOR", "RATE", "TONE", "CRUSH", "DECAY", "INTERVAL"
+    "COLOR", "RATE", "TONE", "CRUSH", "DECAY", "SPEED"
 };
 constexpr std::array<const char*, 6> fluxIds {
     "noiseFlux", "wobbleFlux", "distortFlux",
@@ -39,9 +39,9 @@ constexpr std::array<const char*, 6> enables {
     "noiseOn", "wobbleOn", "distortOn", "digitalOn", "spaceOn", "magneticOn"
 };
 const std::array<juce::Colour, 6> accent {
-    juce::Colour(0xffb9ed48), juce::Colour(0xffebb76e),
-    juce::Colour(0xffbc9afa), juce::Colour(0xff7fcedc),
-    juce::Colour(0xff7addbd), juce::Colour(0xffe8a2c4)
+    juce::Colour(0xff9862ff), juce::Colour(0xff4e8dff),
+    juce::Colour(0xffbe4bff), juce::Colour(0xff25c9fa),
+    juce::Colour(0xff6685ff), juce::Colour(0xff1ec5dc)
 };
 
 void font(juce::Graphics& g, float size, bool bold = false) {
@@ -49,33 +49,31 @@ void font(juce::Graphics& g, float size, bool bold = false) {
                ? juce::Font::bold : juce::Font::plain)));
 }
 juce::String hzLabel(double value) {
-    if (value >= 1000.0) return juce::String(value / 1000.0, 2) + " kHz";
     return juce::String(juce::roundToInt(value)) + " Hz";
 }
 juce::String valueLabel(const juce::String& id, double value) {
     if (id == "lowCut" || id == "highCut") return hzLabel(value);
     if (id == "spaceSize" || id == "magneticSpeed")
         return juce::String(juce::roundToInt(value)) + " ms";
-    if (id == "wobbleRate") return juce::String(value, 2) + " Hz";
-    if (id == "outputDb") {
+    if (id == "wobbleRate") return juce::String(value, 1) + " Hz";
+    if (id == "outputDb" || id == "distortionTone") {
         juce::String prefix = value > 0.001 ? "+" : "";
         return prefix + juce::String(value, 1) + " dB";
     }
-    if (id == "mix" || id == "echoMix") {
-        const auto rounded = juce::roundToInt(value);
-        return (rounded > 0 ? "+" : "") + juce::String(rounded) + "%";
-    }
+    // All % controls are 0..maximum with no bipolar +/- notation.
+    if (id == "mix" || id == "echoMix")
+        return juce::String(juce::roundToInt(value)) + "%";
     return juce::String(juce::roundToInt(value)) + "%";
 }
 }
 
 DC23LookAndFeel::DC23LookAndFeel() {
     setColour(juce::Slider::textBoxTextColourId, pale);
-    setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff15191a));
+    setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff0b0a1c));
     setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
     setColour(juce::ComboBox::backgroundColourId, panel);
     setColour(juce::ComboBox::textColourId, pale);
-    setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff5c6564));
+    setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff49416a));
     setColour(juce::PopupMenu::backgroundColourId, panel);
     setColour(juce::PopupMenu::textColourId, pale);
     setColour(juce::PopupMenu::highlightedBackgroundColourId, lime);
@@ -93,7 +91,7 @@ void DC23LookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int w, i
     const float radius = size * 0.43f;
     const bool bipolar = slider.getComponentID() == "bipolar";
     const auto accentColour = slider.findColour(juce::Slider::rotarySliderFillColourId, true);
-    g.setColour(juce::Colour(0xff141819));
+    g.setColour(juce::Colour(0xff090a19));
     g.fillEllipse(cx-radius, cy-radius, radius*2.0f, radius*2.0f);
 
     juce::Path back, active;
@@ -108,17 +106,17 @@ void DC23LookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int w, i
     } else {
         active.addCentredArc(cx,cy,radius+6.0f,radius+6.0f,0,start,angle,true);
     }
-    g.setColour(juce::Colour(0xff4c5452));
+    g.setColour(juce::Colour(0xff3a3556));
     g.strokePath(back, juce::PathStrokeType(4.5f));
     if (!bipolar || std::abs(position-0.5f) > 0.0001f) {
         g.setColour(bipolar && position < 0.5f ? violet : accentColour);
         g.strokePath(active, juce::PathStrokeType(4.8f));
     }
 
-    g.setColour(juce::Colour(0xff272d2e));
+    g.setColour(juce::Colour(0xff24203d));
     g.fillEllipse(cx-radius+6.0f, cy-radius+6.0f,
                   radius*2.0f-12.0f, radius*2.0f-12.0f);
-    g.setColour(juce::Colour(0xff797f7e));
+    g.setColour(juce::Colour(0xff69678f));
     g.drawEllipse(cx-radius+1.0f, cy-radius+1.0f,
                   radius*2.0f-2.0f, radius*2.0f-2.0f, 1.0f);
     g.setColour(bipolar ? lime : pale);
@@ -136,7 +134,7 @@ void DC23LookAndFeel::drawToggleButton(juce::Graphics& g,
                                       juce::ToggleButton& button, bool, bool) {
     const auto b = button.getLocalBounds().toFloat().reduced(2.0f);
     const bool on = button.getToggleState();
-    g.setColour(on ? lime : juce::Colour(0xff555e5d));
+    g.setColour(on ? lime : juce::Colour(0xff40395c));
     g.fillRoundedRectangle(b, 5.0f);
     g.setColour(ink);
     font(g, 11.0f, true);
@@ -167,9 +165,9 @@ DC23AudioProcessorEditor::DC23AudioProcessorEditor(DC23AudioProcessor& p)
                                                       enables[i], m.enabled);
     }
     setupKnob(magnitude, "magnitude", masterLinks[0]);
-    setupKnob(mix, "mix", masterLinks[1], true);
+    setupKnob(mix, "mix", masterLinks[1]);
     setupKnob(output, "outputDb", masterLinks[2]);
-    setupKnob(echoMix, "echoMix", masterLinks[3], true);
+    setupKnob(echoMix, "echoMix", masterLinks[3]);
     setupKnob(echoFeedback, "echoFeedback", masterLinks[4]);
     setupKnob(width, "width", masterLinks[5]);
     setupKnob(lowCut, "lowCut", masterLinks[6]);
@@ -203,7 +201,7 @@ DC23AudioProcessorEditor::DC23AudioProcessorEditor(DC23AudioProcessor& p)
                                                   "echoDivision", echoDivision);
     addAndMakeVisible(echoDivision);
 
-    factoryPresets.setTextWhenNothingSelected("CHOOSE A COLOR");
+    factoryPresets.setTextWhenNothingSelected("CHOOSE A VINTAGE COLOR");
     const auto& presets = dc23::factoryPresets();
     for (size_t i = 0; i < presets.size(); ++i) {
         factoryPresets.addItem(juce::String(presets[i].category) + "  /  " +
@@ -264,9 +262,9 @@ void DC23AudioProcessorEditor::timerCallback() {
 
 void DC23AudioProcessorEditor::drawModulePlot(juce::Graphics& g, int index,
                                                juce::Rectangle<float> box) {
-    g.setColour(juce::Colour(0xff131717));
+    g.setColour(juce::Colour(0xff0a0b1a));
     g.fillRoundedRectangle(box, 6.0f);
-    g.setColour(juce::Colour(0xff2d3535));
+    g.setColour(juce::Colour(0xff2e2a50));
     for (int y = 1; y < 4; ++y) {
         const float pos = box.getY() + box.getHeight() * float(y) / 4.0f;
         g.drawHorizontalLine(juce::roundToInt(pos),
@@ -325,15 +323,21 @@ void DC23AudioProcessorEditor::paint(juce::Graphics& g) {
     g.fillAll(ink);
     g.setColour(background);
     g.fillRoundedRectangle(juce::Rectangle<float>(12, 11, 1336, 777), 13.0f);
-    g.setGradientFill(juce::ColourGradient(lime, 27.0f, 20.0f,
-                      juce::Colour(0xff8bc82d), 1331.0f, 151.0f, false));
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff160f31), 27.0f, 20.0f,
+                      juce::Colour(0xff10132b), 1331.0f, 151.0f, false));
     g.fillRoundedRectangle(juce::Rectangle<float>(20, 18, 1320, 135), 10.0f);
-    g.setColour(ink);
+    g.setColour(violet);
+    g.drawRoundedRectangle(juce::Rectangle<float>(20, 18, 1320, 135), 10.0f, 1.3f);
+    g.setColour(pale);
     font(g, 67, true);
-    g.drawText("DC-23", 36, 26, 290, 85, juce::Justification::centredLeft);
+    g.drawText("DC-", 36, 26, 154, 85, juce::Justification::centredLeft);
+    g.setColour(violet);
+    g.drawText("23", 162, 26, 144, 85, juce::Justification::centredLeft);
+    g.setColour(muted);
     font(g, 13.5f, true);
-    g.drawText("VINTAGE COLOR LAB  /  0.3", 43, 112, 320, 22,
+    g.drawText("VINTAGE COLOR LAB  /  v1.0", 43, 112, 320, 22,
                juce::Justification::centredLeft);
+    g.setColour(pale);
     font(g, 11.0f, true);
     constexpr std::array<const char*, 3> topLabels {
         "MAGNITUDE", "DRY / WET", "OUTPUT"
@@ -343,17 +347,17 @@ void DC23AudioProcessorEditor::paint(juce::Graphics& g) {
                    juce::Justification::centred);
     g.drawText("FACTORY COLORS", 818, 31, 275, 19,
                juce::Justification::centredLeft);
-    g.drawText("-100 DRY     0 BLEND     +100 WET", 474, 20, 330, 16,
+    g.drawText("0% DRY    /    50% BLEND    /    100% WET", 474, 20, 330, 16,
                juce::Justification::centred);
 
     // Audio-reactive meter in the header.
-    g.setColour(juce::Colour(0xff121616));
+    g.setColour(juce::Colour(0xff0b0b1b));
     g.fillRoundedRectangle(juce::Rectangle<float>(1104, 99, 216, 33), 6.0f);
     for (int s = 0; s < 24; ++s) {
         const float x = 1113.0f + float(s)*8.2f;
         const float level = float(s)/24.0f;
-        g.setColour(level <= meterDisplay ? (level > 0.83f ? juce::Colour(0xfff0b15f) : lime)
-                         : juce::Colour(0xff3a4540));
+        g.setColour(level <= meterDisplay ? (level > 0.83f ? juce::Colour(0xffba58ff) : lime)
+                         : juce::Colour(0xff3d3559));
         g.fillRoundedRectangle(juce::Rectangle<float>(x, 107, 5.8f, 16), 1.0f);
     }
 
@@ -361,12 +365,13 @@ void DC23AudioProcessorEditor::paint(juce::Graphics& g) {
         const auto bounds = moduleBounds(i);
         g.setColour(card);
         g.fillRoundedRectangle(bounds.toFloat(), 9.0f);
-        g.setColour(juce::Colour(0xff525a58));
-        g.drawRoundedRectangle(bounds.toFloat().reduced(0.5f), 9.0f, 1.0f);
         g.setColour(accent[size_t(i)]);
+        g.drawRoundedRectangle(bounds.toFloat().reduced(1.2f), 9.0f, 2.0f);
+        g.setColour(accent[size_t(i)].withAlpha(0.14f));
         g.fillRoundedRectangle(juce::Rectangle<float>(
-            float(bounds.getX()), float(bounds.getY()), float(bounds.getWidth()), 40.0f), 7.0f);
-        g.setColour(ink);
+            float(bounds.getX())+2.0f, float(bounds.getY())+2.0f,
+            float(bounds.getWidth())-4.0f, 38.0f), 7.0f);
+        g.setColour(pale);
         font(g, 16.0f, true);
         g.drawText(names[size_t(i)], bounds.getX()+12, bounds.getY()+8,
                    148, 24, juce::Justification::centredLeft);
@@ -385,7 +390,7 @@ void DC23AudioProcessorEditor::paint(juce::Graphics& g) {
         g.drawText("FLUX",bounds.getX()+108,bounds.getY()+262,94,18,
                    juce::Justification::centred);
         if (i != 0 && i != 2 && i != 3) {
-            g.setColour(juce::Colour(0xff66716f));
+            g.setColour(juce::Colour(0xff79719d));
             font(g, 9.5f, true);
             g.drawText(subtitles[size_t(i)],bounds.getX()+12,bounds.getY()+358,
                        186,13,juce::Justification::centred);
@@ -402,7 +407,11 @@ void DC23AudioProcessorEditor::paint(juce::Graphics& g) {
     g.setColour(panel);
     g.fillRoundedRectangle(juce::Rectangle<float>(23, 571, 639, 204), 10.0f);
     g.fillRoundedRectangle(juce::Rectangle<float>(674, 571, 664, 204), 10.0f);
+    g.setColour(violet);
+    g.drawRoundedRectangle(juce::Rectangle<float>(23, 571, 639, 204), 10.0f, 2.0f);
     g.setColour(lime);
+    g.drawRoundedRectangle(juce::Rectangle<float>(674, 571, 664, 204), 10.0f, 2.0f);
+    g.setColour(pale);
     font(g, 17.0f, true);
     g.drawText("ECHO", 41, 583, 158, 27, juce::Justification::centredLeft);
     g.drawText("MASTER TONE", 694, 583, 270, 27,
@@ -433,9 +442,9 @@ void DC23AudioProcessorEditor::paint(juce::Graphics& g) {
                231, 720, 200, 25, juce::Justification::centred);
     g.setColour(muted);
     font(g, 9.5f);
-    g.drawText("−100% DRY    /    0% EVEN    /    +100% WET", 43, 761, 362, 14,
+    g.drawText("0% DRY    /    50% EVEN    /    100% WET", 43, 761, 362, 14,
                juce::Justification::centredLeft);
-    g.drawText("DIOALEX MUSIC TOOLS  •  ORIGINAL DSP", 958, 759, 363, 15,
+    g.drawText("DIOALEX MUSIC TOOLS  •  ORIGINAL DSP  •  VST3", 958, 759, 363, 15,
                juce::Justification::centredRight);
 }
 
