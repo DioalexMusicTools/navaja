@@ -1,0 +1,22 @@
+#!/bin/bash
+# DC-23 v1.0 postinstall — ONLY the exact installed DC-23 VST3 bundle.
+# This script runs via macOS Installer after the user explicitly authorizes
+# installation. Never change Gatekeeper settings globally.
+set -euo pipefail
+PLUGIN="/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
+if [[ ! -d "$PLUGIN" ]]; then
+  echo "DC-23 bundle missing: $PLUGIN" >&2
+  exit 1
+fi
+if /usr/bin/codesign -dv --verbose=4 "$PLUGIN" 2>&1 \
+    | /usr/bin/grep -q "Authority=Developer ID Application:"; then
+  # Preserve verified developer signature; modifying it would invalidate notarization.
+  echo "DC-23 has a Developer ID signature; leaving signed binary unmodified."
+else
+  # Self-built, unsigned install: scoped quarantine clearance and local ad-hoc sign.
+  /usr/bin/xattr -dr com.apple.quarantine "$PLUGIN" 2>/dev/null || true
+  /usr/bin/codesign --force --deep --sign - "$PLUGIN"
+  /usr/bin/codesign --verify --deep --strict "$PLUGIN"
+  echo "DC-23 locally ad-hoc signed after installation."
+fi
+exit 0

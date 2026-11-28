@@ -1,0 +1,15 @@
+DC-23 v1.0  |  Dioalex Music Tools
+===================================
+1. Double-click "Install DC-23.pkg" and authorize the macOS Installer.
+2. The installer places DC-23.vst3 in:
+   /Library/Audio/Plug-Ins/VST3/
+3. For an unsigned development copy only, the post-install script runs
+   these commands scoped ONLY to DC-23:
+   xattr -dr com.apple.quarantine "/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
+   codesign --force --deep --sign - "/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
+   A Developer-ID-signed copy is left untouched to preserve notarization.
+4. Restart FL Studio > Options > Manage plugins > Find installed plugins.
+WARNING: a DMG/PKG without Developer ID signing and Apple notarization
+may be blocked by Gatekeeper. This is for testing, not public distribution.
+Do not disable macOS Gatekeeper globally. Public release requires certificates,
+notarization, licensing and real host validation.

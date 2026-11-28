@@ -1,63 +1,101 @@
-# DC-23 v0.3 — Vintage Color Lab
+# DC-23 v1.0 — Vintage Color Lab
 
-Original, JUCE-based 6-module multi-FX VST3 for macOS and FL Studio, produced for Dioalex Music Tools.
+Original JUCE/C++ six-module vintage multi-FX by Dioalex Music Tools. VST3 for FL Studio on macOS universal (Apple Silicon + Intel) and Windows x64.
 
-**Not affiliated with XLN Audio, RC-20, or Arturia.** No source code, proprietary presets, logos, audio samples or internal algorithms are copied. The preset library is an original interpretation of common lo-fi tape, vinyl, ambient and sampler-production use cases.
+Not affiliated with XLN Audio, RC-20, Valhalla DSP, Arturia or other products; no proprietary source, samples, brand or presets are copied.
 
-## What's new
+## v1.0 parameter reference
 
-- **Clear units throughout the interface**: Amount, Flux, Color, Digital Crush, Smooth, Feedback, Magnitude and Stereo Width appear as 0–100%. Wobble Rate shows Hz. Reverb Decay and Magnetic Drop Interval show milliseconds (ms). Output is dB.
-- **Centered bipolar Dry/Wet controls**: the upper-center position is **0% = 50/50 dry/wet**. Turning left moves to **-100% = fully dry**, right to **+100% = fully wet**. Both global mix and Echo mix use this convention. Echo has its own ON/OFF switch and is OFF for the clean default preset.
-- **BPM-synced Echo**: note divisions **1/2, 1/4, 1/8 dotted, 1/8, 1/8 triplet, 1/16, 1/32**. Echo reads the host's BPM, with a 120 BPM fallback. The UI displays the resulting duration in milliseconds and current BPM. Time mapping, e.g. 1/4 at 120 BPM = 500ms.
-- **Low Cut / High Cut in Hertz**: physical cutoff frequencies, 20–2200Hz and 250–20000Hz; separate on/off switches permit genuine bypass without using a magic 0Hz setting.
-- **Custom professional interface**: centered bipolar knobs, consistent numeric readouts and legends, six horizontally aligned effect modules, animated waveforms, audio-reactive display and output-meter indicator. These visualizations indicate motion and character; they are **not** precision oscilloscopes or frequency analyzers.
-- **20 original factory presets**: Clean Slate, Cassette Warmth, Night Bus, Dusty Piano, Vinyl Morning, Beat Tape, Worn Drum Loop, Bit Crumble, Dreamy Drift, Soft Organ, Spacious Pad, Glassy Repeats, Neon Stairs, Lost Transmission, Old Radio, Mono Memory, Analog Bus, Saturated 808, Tape Flutter and Slumber Keys. Presets are original DC-23 values, not conversions of RC-20 files.
+| Parameter | Range | Default |
+| --- | --- | --- |
+| Amount (6 modules) | 0–100% | 0% |
+| Flux (6 modules) | 0–100% | 0% |
+| Rate (Wobble) | 6.0–30.0 Hz | 12.0 Hz |
+| Stereo Width | 0–200% | 100% |
+| High Cut | 20–20000 Hz | 8778 Hz |
+| Low Cut | 20–20000 Hz | 62 Hz |
+| Tone (Distort) | −12 to +12 dB | +4.2 dB |
+| Master Dry/Wet | 0–100% | 50% |
+| Magnitude | 0–100% | 100% |
+| Noise Color | 0–45% | 35% |
+| Digital Crush | 0–50% | 25% |
+| Magnetic Speed | 0–100 ms | 50 ms |
+| Space Decay | 0–100 ms | 50 ms |
+| Output | −18 to +18 dB | +5 dB |
 
-## Audio engine
+Low Cut min/max were reversed in the requested description, so DC-23 correctly uses minimum 20 Hz, maximum 20000 Hz, and default 62 Hz.
 
-Six serial modules: Noise (Tape/Vinyl/Hum), Wobble (wow/flutter), Distort (Tape/Valve/Fuzz), Digital (bit and rate reduction), Space (4-feedback-comb diffuse reverb with time-based feedback), Magnetic (dropout interval in ms). Each has ON/OFF, Amount, Character and Flux. Echo follows the effect modules, with BPM sync and feedback. Output width and low/high cuts follow Echo. All JUCE parameters are automatable.
+At 0ms Decay there is no reverb feedback; at 0ms magnetic Speed new dropouts are bypassed. Filters are ON by default. Dry/Wet is 0% dry, 100% wet. Echo wet control also uses 0–100%. Echo OFF by default. 20 original factory presets were remapped for the revised control ranges.
 
-## Building
+**Upgrade warning:** Existing parameter IDs are retained, but many ranges and units have changed since v0.3. Back up all FL Studio projects, automations and custom presets before installing v1.0. Old sessions can sound different after recall.
 
-Requirements: macOS, Xcode 16 or Xcode CLI tools, CMake 3.22+, network access for JUCE 9.0.6 and its licence terms.
+## Download v1 installers
 
-    cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+GitHub Actions, branch dc23-v1-release, workflow DC-23 v1.0 - macOS DMG and Windows EXE. Select a successful job and download:
+
+* DC-23-v1.0-macOS-DMG: macOS .dmg with graphical .pkg installer.
+* DC-23-v1.0-Windows-EXE: x64 Windows .exe setup, with uninstaller.
+
+Artifacts arrive as ZIPs that must be extracted first.
+
+### macOS
+
+Open the DMG and double-click Install DC-23.pkg. Installer copies DC-23.vst3 to /Library/Audio/Plug-Ins/VST3/.
+
+For unsigned development builds only, its post-install script automatically executes the two terminal commands you have used before, scoped to DC-23 alone:
+
+    xattr -dr com.apple.quarantine "/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
+    codesign --force --deep --sign - "/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
+
+For Developer-ID-signed builds, this script does NOT re-sign, preserving the original notarizable signature. It does not disable Gatekeeper globally.
+
+Important: unsigned Mac .dmg and .pkg still may be blocked by Gatekeeper before installation. Automatic local permissions fixes are not an alternative to Apple Developer ID signing and Apple notarization.
+
+### Windows
+
+Close FL Studio and run DC-23-v1.0-Windows-x64-Setup.exe. It installs the complete bundle under C:\Program Files\Common Files\VST3\DC-23.vst3. Administrative approval is required. Use Windows Apps to uninstall.
+
+Open FL Studio → Options → Manage plugins → Find installed plugins. Insert DC-23 as an effect on a mixer channel.
+
+## Public distribution readiness
+
+GitHub Actions can build evaluation installers without proprietary signing certificates. They are NOT suitable for a frictionless public distribution until all of these are done:
+- Supply Apple Developer ID Application and Installer signing identities, sign the VST3 and package, notarize both PKG and DMG, staple tickets, and validate Gatekeeper clean-machine installation.
+- Sign the Windows DLL and EXE with an Authenticode publisher certificate for better Windows trust.
+- Test UI sizing, plugin scanning, automation and old preset recall, 20 factory presets, CPU usage and sound (gain/headroom at +18 dB; delay extremes; click-free changes) in real FL Studio on Apple Silicon, Intel and Windows x64.
+- Check licensing for JUCE 9 (dual AGPLv3/commercial) and any third-party dependencies and release rights.
+
+GitHub Action secret names for optional macOS public signing:
+  DC23_MAC_DEVELOPER_CERT_P12_BASE64
+  DC23_MAC_DEVELOPER_CERT_PASSWORD
+  DC23_MAC_APP_SIGNING_IDENTITY
+  DC23_MAC_INSTALLER_SIGNING_IDENTITY
+  DC23_APPLE_ID
+  DC23_APPLE_TEAM_ID
+  DC23_APP_SPECIFIC_PASSWORD
+
+For optional Windows Authenticode signing:
+  DC23_WINDOWS_CODESIGN_PFX_BASE64
+  DC23_WINDOWS_CODESIGN_PFX_PASSWORD
+
+Add these to GitHub repository Actions Secrets. Never paste private keys/passwords in chat or commit them.
+
+## Manual builds
+
+Mac:
+
+    cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
     cmake --build build --config Release --target DC23Plugin_VST3 dc23_dsp_tests --parallel 3
     ctest --test-dir build -C Release --output-on-failure
 
-Compiled bundle expected in:
+Windows:
 
-    build/DC23Plugin_artefacts/Release/VST3/DC-23.vst3
+    cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+    cmake --build build --config Release --target DC23Plugin_VST3 dc23_dsp_tests --parallel 3
+    ctest --test-dir build -C Release --output-on-failure
 
-Or run portable DSP tests without JUCE:
+Portable tests:
 
     cmake -S . -B build-core -DDC23_BUILD_PLUGIN=OFF
     cmake --build build-core
     ctest --test-dir build-core --output-on-failure
-
-## macOS installation
-
-In GitHub, open **Actions > DC-23 macOS VST3** and select the latest green build for branch **dc23-v03**. Under Artifacts, download **DC-23-macOS-universal-VST3**; expand both the Actions artifact ZIP and the inner plugin ZIP if applicable. Install the full **DC-23.vst3** bundle into one of:
-
-    ~/Library/Audio/Plug-Ins/VST3/
-    /Library/Audio/Plug-Ins/VST3/
-
-Close FL Studio before replacing the existing bundle; back up your older DC-23.vst3 and any important FL Studio projects first.
-
-The GitHub artifact is not Apple Developer signed/notarized. If macOS quarantines your self-built download, confirm its origin and then use (for user-level installation):
-
-    xattr -dr com.apple.quarantine "$HOME/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
-    codesign --force --deep --sign - "$HOME/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
-
-Change the path and add sudo if you installed under /Library/Audio/Plug-Ins/VST3. Reopen FL Studio and rescan via Options > Manage plugins.
-
-## Compatibility and test status
-
-- GitHub Actions builds native VST3 for Intel and Apple Silicon and runs timing, factory preset, audio bypass, Echo and extreme-input tests. These are engineering tests, not proof of auditory quality, sample-accurate host automation or FL Studio stability.
-- The VST3 bundle ID is unchanged for host recognition. **Existing parameter ranges have changed to display user-friendly units**, so older DC-23 automation and project recall may behave differently. Back up projects before installing. The previous v0.2 branch remains available.
-- No sample-based vinyl loops, oversampled saturation, automatic tempo-ramp crossfading, adjustable module order, surround sound or signed installer are provided in this build.
-- JUCE 9 licensing is dual AGPLv3/commercial. Review the upstream licensing before distributing a proprietary commercial plugin.
-
-## Next listening tests
-
-Compare original and processed audio at equal loudness. Check piano, drum breaks, sampled loops, synth pads, vocals and bass in FL Studio. Assess unwanted clicks, noise at silence, gain compensation, reverb buildup, large transport BPM changes and the sound of each model. Screenshot the plugin editor if any controls are clipped at your screen's macOS display scaling.
