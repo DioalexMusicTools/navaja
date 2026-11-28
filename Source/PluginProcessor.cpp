@@ -29,6 +29,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout DioVerbProcessor::makeParame
     layout.add(choice("mode", "Source", {"Vocal", "Instrument"}, 0));
     layout.add(choice("length", "Reverse Length", {"1/4 bar", "1/2 bar", "1 bar"}, 1));
     layout.add(floatParameter("size", "Room Size", 0.0f, 100.0f, 58.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{"decayMs", 1}, "Reverb Decay (ms)",
+        juce::NormalisableRange<float>(250.0f, 8000.0f, 10.0f, 0.45f),
+        2450.0f));
     layout.add(floatParameter("tone", "Tone", 0.0f, 100.0f, 58.0f));
     layout.add(floatParameter("width", "Stereo Width", 0.0f, 100.0f, 78.0f));
     layout.add(choice("tremolo", "Tremolo", {"Off", "1/8", "1/16", "1/32"}, 0));
@@ -162,6 +166,7 @@ bool DioVerbProcessor::renderCaptured() {
     settings.length = static_cast<dioverb::Length>(
         std::clamp(int(parameter("length")), 0, 2));
     settings.size = parameter("size") * 0.01f;
+    settings.decayMs = parameter("decayMs");
     settings.tone = parameter("tone") * 0.01f;
     settings.width = parameter("width") * 0.01f;
     settings.tremolo = static_cast<dioverb::Tremolo>(
