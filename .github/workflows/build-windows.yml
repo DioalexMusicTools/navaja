@@ -1,0 +1,53 @@
+name: DC-23 Windows x64 VST3
+
+on:
+  push:
+    branches: ["dc23-windows-x64"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-vst3:
+    name: Windows x64 VST3
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure MSVC x64
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+      - name: Build VST3 and DSP tests
+        run: cmake --build build --config Release --target DC23Plugin_VST3 dc23_dsp_tests --parallel 3
+      - name: Run DSP tests
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Validate VST3 x64 bundle
+        run: |
+          $bundle = "build/DC23Plugin_artefacts/Release/VST3/DC-23.vst3"
+          $binary = Join-Path $bundle "Contents/x86_64-win/DC-23.vst3"
+          if (-not (Test-Path -LiteralPath $bundle -PathType Container)) {
+            throw "Missing VST3 bundle: $bundle"
+          }
+          if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) {
+            Get-ChildItem -LiteralPath $bundle -Recurse | Select-Object -ExpandProperty FullName
+            throw "Missing x86_64-win VST3 binary: $binary"
+          }
+          if ((Get-Item -LiteralPath $binary).Length -lt 100000) {
+            throw "VST3 binary unexpectedly small"
+          }
+          Write-Host "Validated Windows x64 VST3: $binary"
+      - name: Package complete VST3 bundle
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $bundle = "build/DC23Plugin_artefacts/Release/VST3/DC-23.vst3"
+          Compress-Archive -LiteralPath $bundle -DestinationPath "dist/DC-23-Windows-x64-VST3.zip" -CompressionLevel Optimal -Force
+          if (-not (Test-Path "dist/DC-23-Windows-x64-VST3.zip")) { throw "Missing ZIP" }
+      - name: Upload Windows VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: DC-23-Windows-x64-VST3
+          path: dist/DC-23-Windows-x64-VST3.zip
+          if-no-files-found: error
