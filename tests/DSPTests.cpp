@@ -9,7 +9,7 @@
 
 static void require(bool condition, const char* reason) {
     if (!condition) {
-        std::cerr << "DC-23 0.3 regression failed: " << reason << '\n';
+        std::cerr << "DC-23 v1.0 regression failed: " << reason << '\n';
         std::exit(EXIT_FAILURE);
     }
 }
@@ -30,9 +30,17 @@ int main() {
         require(f.name && f.category, "named factory preset");
         for (float a : f.amount) require(a >= 0 && a <= 100, "amount % bounds");
         for (float x : f.flux) require(x >= 0 && x <= 100, "flux % bounds");
-        require(f.decayMs >= 150 && f.decayMs <= 4000, "decay in ms range");
-        require(f.wearMs >= 60 && f.wearMs <= 750, "drop in ms range");
-        require(f.echoMix >= -100 && f.echoMix <= 100, "bipolar echo");
+        require(f.decayMs >= 0 && f.decayMs <= 100, "decay 0..100ms range");
+        require(f.wearMs >= 0 && f.wearMs <= 100, "magnetic speed 0..100ms range");
+        require(f.echoMix >= 0 && f.echoMix <= 100, "unipolar echo wet range");
+        require(f.noiseColor >= 0 && f.noiseColor <= 45, "Color 0..45%");
+        require(f.digitalRate >= 0 && f.digitalRate <= 50, "Crush 0..50%");
+        require(f.wobbleHz >= 6 && f.wobbleHz <= 30, "Rate 6..30 Hz");
+        require(f.width >= 0 && f.width <= 200, "Stereo Width 0..200%");
+        require(f.driveTone >= -12 && f.driveTone <= 12, "Tone +/-12 dB");
+        require(f.mix >= 0 && f.mix <= 100, "DryWet 0..100%");
+        require(f.lowCutHz >= 20 && f.lowCutHz <= 20000, "LowCut 20..20000Hz");
+        require(f.highCutHz >= 20 && f.highCutHz <= 20000, "HighCut 20..20000Hz");
     }
 
     dc23::Engine engine;
@@ -53,7 +61,7 @@ int main() {
     for (int i=0;i<N;++i)
         require(std::abs(left[i]-original[i]) < 1e-6f,"no FX preserves input");
 
-    // -100% bipolar wet = 0 DSP mix. Signal must remain exactly DRY.
+    // Master 0% wet = full bypass, regardless of internal FX state.
     engine.reset();
     std::copy(original.begin(),original.end(),left.begin());
     p.amount.fill(1);
@@ -99,10 +107,11 @@ int main() {
             p={};
             p.noiseStyle=style; p.distortionStyle=style;
             p.amount.fill(1); p.flux.fill(1);
-            p.spaceDecayMs=4000; p.magneticIntervalMs=60;
+            p.spaceDecayMs=100; p.magneticIntervalMs=100;
             p.lowCutHz=180; p.highCutHz=6500;
             p.mix=1; p.echoMix=1; p.echoFeedback=0.8f;
-            p.width=2; p.outputDb=12;
+            p.width=2; p.outputDb=18;
+            p.wobbleRate=30; p.distortionTone=12; p.digitalRate=1;
             for(int block=0;block<12;++block) {
                 for(int i=0;i<N;++i) {
                     left[i]=0.9f*std::sin(float(i+block*N)*0.11f);
@@ -121,5 +130,5 @@ int main() {
             for(float x:left)require(std::isfinite(x),"mono finite");
         }
     }
-    std::cout<<"DC-23 0.3 timing, presets, bypass, echo and DSP tests passed\n";
+    std::cout<<"DC-23 v1.0 ranges, timing, presets, bypass, echo and DSP tests passed\n";
 }
