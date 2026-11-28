@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(DC23 VERSION 0.3.0 LANGUAGES C CXX)
+project(DC23 VERSION 1.0.0 LANGUAGES C CXX)
 
 option(DC23_BUILD_PLUGIN "Build the JUCE plug-in" ON)
 
