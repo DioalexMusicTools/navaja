@@ -1,5 +1,5 @@
 #pragma once
-// DC-23 DSP v0.3: original, portable, allocation-free on the audio thread.
+// DC-23 DSP v1.0: original, portable, allocation-free on the audio thread.
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -17,16 +17,16 @@ struct Parameters {
     std::array<float, 6> flux {{0.12f, 0.10f, 0.07f, 0.08f, 0.05f, 0.30f}};
     float magnitude = 1.0f;
     float mix = 1.0f;
-    float outputDb = 0.0f;
+    float outputDb = 5.0f;
     float noiseColor = 0.35f;
     int noiseStyle = 0;             // 0 tape, 1 vinyl, 2 mains hum
-    float wobbleRate = 0.9f;
-    float distortionTone = 0.5f;
+    float wobbleRate = 12.0f;
+    float distortionTone = 4.2f; // dB signed tonal shelf
     int distortionStyle = 0;       // 0 tape, 1 valve, 2 fuzz
-    float digitalRate = 0.5f;
+    float digitalRate = 0.5f; // normalized from 0–50% Crush
     float digitalSmooth = 0.55f;
-    float spaceDecayMs = 1200.0f;
-    float magneticIntervalMs = 310.0f;
+    float spaceDecayMs = 50.0f;
+    float magneticIntervalMs = 50.0f;
     float lowCutHz = 0.0f;
     float highCutHz = 0.0f;
     float width = 1.0f;            // 0 mono, 1 unmodified, 2 extra wide
@@ -84,22 +84,23 @@ public:
         const float slowSlew = std::min(1.0f, 1.0f / (0.2f * rate));
         const float mixGoal = limit(p.mix);
         const float echoGoal = limit(p.echoMix) * limit(p.magnitude);
-        const float gainGoal = std::pow(10.0f, std::clamp(p.outputDb, -18.0f, 12.0f) / 20.0f);
+        const float gainGoal = std::pow(10.0f, std::clamp(p.outputDb, -18.0f, 18.0f) / 20.0f);
         const float widthGoal = std::clamp(p.width, 0.0f, 2.0f);
         const float echoDelayGoal = rate * std::clamp(p.echoTimeMs, 50.0f, 4000.0f) / 1000.0f;
         const float echoFeedback = std::clamp(p.echoFeedback, 0.0f, 0.8f);
-        const float hpHz = std::clamp(p.lowCutHz, 20.0f, 2200.0f);
-        const float lpHz = std::clamp(p.highCutHz, 250.0f, 20000.0f);
+        const float hpHz = std::clamp(p.lowCutHz, 20.0f, 20000.0f);
+        const float lpHz = std::clamp(p.highCutHz, 20.0f, 20000.0f);
         const float hpA = std::exp(-2.0f * pi * std::min(hpHz, 0.45f * rate) / rate);
-        const float lpA = std::exp(-2.0f * pi * lpHz / rate);
-        const float wobbleRate = std::clamp(p.wobbleRate, 0.1f, 8.0f);
+        const float lpA = std::exp(-2.0f * pi * std::min(lpHz, 0.45f * rate) / rate);
+        const float wobbleRate = std::clamp(p.wobbleRate, 6.0f, 30.0f);
         // T60 calibration for each comb delay: a repeat drops to -60dB in decayMs.
         std::array<std::array<float, 4>, 2> combFeedback {};
-        const float reverbT60 = std::clamp(p.spaceDecayMs, 150.0f, 4000.0f) * 0.001f;
+        const float reverbT60 = std::clamp(p.spaceDecayMs, 0.0f, 100.0f) * 0.001f;
         for (int c = 0; c < channelsUsed; ++c)
             for (size_t k = 0; k < 4; ++k) {
                 const float delaySec = float(channels[size_t(c)].combs[k].size()) / rate;
-                combFeedback[size_t(c)][k] = std::pow(0.001f, delaySec / reverbT60);
+                combFeedback[size_t(c)][k] = reverbT60 > 0.0f
+                    ? std::pow(0.001f, delaySec / reverbT60) : 0.0f;
             }
         const int noiseStyle = std::clamp(p.noiseStyle, 0, 2);
         const int distortionStyle = std::clamp(p.distortionStyle, 0, 2);
@@ -175,9 +176,13 @@ public:
                 // Three original distortion curves: tape soft-knee, asymmetric valve, fuzz.
                 const float d = depth[2];
                 if (d > 0.00001f) {
-                    const float gain = 1.0f + d * (2.0f + 12.0f * limit(p.distortionTone));
-                    ch.toneMemory += (x - ch.toneMemory) * (0.3f + 0.6f * (1.0f - limit(p.distortionTone)));
-                    const float pre = ch.toneMemory;
+                    // Signed ±12 dB tilt: boost or cut the bright component
+                    // without turning an ostensibly EQ-labelled knob into extra distortion.
+                    const float toneDb = std::clamp(p.distortionTone, -12.0f, 12.0f);
+                    const float toneGain = std::pow(10.0f, toneDb / 20.0f);
+                    ch.toneMemory += (x - ch.toneMemory) * 0.16f;
+                    const float pre = ch.toneMemory + (x - ch.toneMemory) * toneGain;
+                    const float gain = 1.0f + d * 6.0f;
                     float shaped = 0.0f;
                     if (distortionStyle == 0) {
                         shaped = std::tanh(pre * gain) / std::tanh(gain);
@@ -229,12 +234,16 @@ public:
                 x = x * (1.0f - 0.12f * depth[4]) + reflected * (0.45f * depth[4]);
 
                 // Magnetic wear: random dropouts with soft attack/recovery.
-                if (--ch.dropSamples <= 0) {
+                if (p.magneticIntervalMs <= 0.0f) {
+                    // Zero milliseconds disables new dropouts; recovery remains smooth.
+                    ch.dropTarget = 1.0f;
+                    ch.dropSamples = 1;
+                } else if (--ch.dropSamples <= 0) {
                     ch.dropTarget = random01() > 0.57f
                         ? 1.0f - depth[5] * (0.25f + 0.7f * random01())
                         : 1.0f;
                     ch.dropSamples = std::max(1, static_cast<int>(rate *
-                        (0.035f + random01() * std::clamp(p.magneticIntervalMs, 60.0f, 750.0f) * 0.001f)));
+                        (0.002f + random01() * std::clamp(p.magneticIntervalMs, 0.0f, 100.0f) * 0.001f)));
                 }
                 ch.drop += (ch.dropTarget - ch.drop) * std::min(1.0f, 45.0f / rate);
                 x *= ch.drop;
@@ -259,7 +268,7 @@ public:
                     ch.hp = hpA * ch.hp + (1.0f - hpA) * x;
                     x -= ch.hp;
                 } else ch.hp = x;
-                if (p.highCutHz >= 250.0f) {
+                if (p.highCutHz >= 20.0f) {
                     ch.lp = lpA * ch.lp + (1.0f - lpA) * x;
                     x = ch.lp;
                 } else ch.lp = x;
