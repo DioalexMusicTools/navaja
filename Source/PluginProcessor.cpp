@@ -49,13 +49,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout DC23AudioProcessor::makePara
     layout.add(param("spaceFlux", "Space Flux", 0, 100, 0));
     layout.add(param("magneticFlux", "Magnetic Flux", 0, 100, 0));
 
-    layout.add(param("noiseColor", "Noise Color", 0, 100, 35));
-    layout.add(param("wobbleRate", "Wobble Rate Hz", 0.10f, 8.0f, 0.9f));
-    layout.add(param("distortionTone", "Distortion Tone", 0, 100, 50));
-    layout.add(param("digitalRate", "Digital Crush", 0, 100, 50));
+    layout.add(param("noiseColor", "Noise Color (%)", 0, 45, 35));
+    layout.add(param("wobbleRate", "Wobble Rate (Hz)", 6.0f, 30.0f, 12.0f));
+    layout.add(param("distortionTone", "Distortion Tone (dB)", -12.0f, 12.0f, 4.2f));
+    layout.add(param("digitalRate", "Digital Crush (%)", 0, 50, 25));
     layout.add(param("digitalSmooth", "Digital Smooth", 0, 100, 55));
-    layout.add(param("spaceSize", "Reverb Decay ms", 150, 4000, 1200));
-    layout.add(param("magneticSpeed", "Drop Interval ms", 60, 750, 310));
+    layout.add(param("spaceSize", "Reverb Decay (ms)", 0, 100, 50));
+    layout.add(param("magneticSpeed", "Magnetic Speed (ms)", 0, 100, 50));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID("noiseStyle", 1), "Noise Texture",
@@ -65,17 +65,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout DC23AudioProcessor::makePara
         juce::StringArray{"Tape", "Valve", "Fuzz"}, 0));
 
     layout.add(param("magnitude", "Master Amount", 0, 100, 100));
-    // User-facing bipolar controls: -100 DRY / 0 50-50 / +100 WET.
-    layout.add(param("mix", "Master Dry Wet", -100, 100, 0));
-    layout.add(param("outputDb", "Output dB", -18, 12, 0));
-    layout.add(param("width", "Stereo Width", 0, 100, 50));
-    layout.add(param("lowCut", "Low Cut Hz", 20, 2200, 90));
-    layout.add(param("highCut", "High Cut Hz", 250, 20000, 14000));
-    layout.add(toggle("lowCutOn", "Low Cut Enabled", false));
-    layout.add(toggle("highCutOn", "High Cut Enabled", false));
+    // Unipolar, zero = entirely dry, 100 = entirely wet.
+    layout.add(param("mix", "Master Dry Wet (%)", 0, 100, 50));
+    layout.add(param("outputDb", "Output (dB)", -18, 18, 5));
+    layout.add(param("width", "Stereo Width (%)", 0, 200, 100));
+    layout.add(param("lowCut", "Low Cut (Hz)", 20, 20000, 62));
+    layout.add(param("highCut", "High Cut (Hz)", 20, 20000, 8778));
+    layout.add(toggle("lowCutOn", "Low Cut Enabled", true));
+    layout.add(toggle("highCutOn", "High Cut Enabled", true));
 
     layout.add(toggle("echoOn", "Echo Enabled", false));
-    layout.add(param("echoMix", "Echo Dry Wet", -100, 100, 0));
+    layout.add(param("echoMix", "Echo Dry Wet (%)", 0, 100, 0));
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID("echoDivision", 1), "Echo Note Division",
         juce::StringArray{"1/2", "1/4", "1/8 D", "1/8", "1/8 T", "1/16", "1/32"}, 3));
@@ -134,20 +134,20 @@ void DC23AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mi
     p.distortionStyle = static_cast<int>(read("distortionStyle"));
     p.noiseColor = read("noiseColor") * 0.01f;
     p.wobbleRate = read("wobbleRate");
-    p.distortionTone = read("distortionTone") * 0.01f;
-    p.digitalRate = read("digitalRate") * 0.01f;
+    p.distortionTone = read("distortionTone");
+    p.digitalRate = read("digitalRate") * 0.02f;
     p.digitalSmooth = read("digitalSmooth") * 0.01f;
     p.spaceDecayMs = read("spaceSize");
     p.magneticIntervalMs = read("magneticSpeed");
     p.magnitude = read("magnitude") * 0.01f;
-    p.mix = (read("mix") + 100.0f) * 0.005f;
+    p.mix = read("mix") * 0.01f;
     p.outputDb = read("outputDb");
-    p.width = read("width") * 0.02f;
+    p.width = read("width") * 0.01f;
     p.lowCutHz = read("lowCutOn") > 0.5f ? read("lowCut") : 0.0f;
     p.highCutHz = read("highCutOn") > 0.5f ? read("highCut") : 0.0f;
 
     p.echoMix = read("echoOn") > 0.5f
-        ? (read("echoMix") + 100.0f) * 0.005f : 0.0f;
+        ? read("echoMix") * 0.01f : 0.0f;
     p.echoFeedback = read("echoFeedback") * 0.008f;
     p.echoTimeMs = dc23::syncedEchoMilliseconds(
         static_cast<int>(read("echoDivision")), getHostBpm());
@@ -211,7 +211,7 @@ void DC23AudioProcessor::applyFactoryPreset(int index) {
     set("magneticSpeed", p.wearMs);
     set("magnitude", p.magnitude);
     set("mix", p.mix);
-    set("outputDb", 0.0f);
+    set("outputDb", 5.0f);
     set("width", p.width);
     set("lowCutOn", p.lowCutOn ? 1.0f : 0.0f);
     set("highCutOn", p.highCutOn ? 1.0f : 0.0f);
