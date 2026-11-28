@@ -1,167 +1,80 @@
-# NAVAJA
+# DioVERB — Reverse Reverb VST3 for macOS
 
-Dioalex Music Tools
-Creative Harmonic Builder for Urban Producers
+**DioVERB** is an original reverse-reverb creation plugin for FL Studio and other macOS VST3 hosts, produced for **Dioalex Music Tools**. It has a simple recording workflow designed for short vocal phrases, chord hits, guitars and synths.
 
----
+**Capture → Shape → Render → Preview → Drag WAV.**
 
-## Descripción
+> Backverb by Yoshi Audio was a workflow reference. DioVERB is independently implemented, with original DSP, visuals, names and source code. It is not an XLN, Arturia or Yoshi Audio product. No proprietary presets or assets are embedded.
 
-NAVAJA es una Progressive Web App (PWA) diseñada para productores de música urbana que desean crear progresiones armónicas modernas con base sólida en teoría musical.
+## Features
 
-La aplicación combina visualización interactiva del círculo armónico, generación dinámica de progresiones por género y análisis básico de estilo, permitiendo construir ideas musicales de forma rápida, coherente y creativa.
+- **Capture** up to 12 seconds of audio from an insert in the DAW, while passing it through unaffected.
+- **Reverse reverb** created with an original offline multidelays/diffuser engine: reverse the captured onset; create the wet tail; reverse that tail into an anticipatory swell of exactly the selected beat length.
+- **Length:** 1/4 bar, 1/2 bar, 1 bar (4/4). Reads host BPM; defaults to 120 BPM if no tempo is provided.
+- **Mode:** Vocal / Instrument (tail excitation and phrase focus vary).
+- **Controls:** Size, Tone, Width, Tremolo rate (Off, 1/8, 1/16, 1/32), Depth, Output.
+- **Preview:** plays the generated audio from the plugin into the host mixer while the audio callback runs.
+- **Drag WAV:** click and drag the labeled pad into the FL Studio Playlist. Uses JUCE native external file dragging. A **SAVE WAV** action also exports a copy through a file dialog.
+- **WAV:** interleaved stereo, 24-bit, at the host sample rate.
+- All shape parameters saved with FL Studio projects via the JUCE parameter state. Captured audio and exported WAV **are not** embedded into saved project state, so keep exported files.
 
-NAVAJA no reemplaza la creatividad, la optimiza y la estructura.
+## Installing macOS VST3
 
----
+In GitHub, open **Actions → DioVERB macOS VST3** and open the latest **successful** workflow on branch **dioverb-macos**. Under **Artifacts**, download **DioVERB-macOS-universal-VST3**. Unzip the Actions artifact ZIP and then, if present, the inner ZIP to obtain **DioVERB.vst3**.
 
-## Acceso a la aplicación
+Install the entire bundle to one of:
 
-La aplicación está desplegada en GitHub Pages y puede utilizarse directamente desde el siguiente enlace:
+    ~/Library/Audio/Plug-Ins/VST3/
+    /Library/Audio/Plug-Ins/VST3/
 
-[https://dioalexmusictools.github.io/navaja/](https://dioalexmusictools.github.io/navaja/)
+In FL Studio: **Options → Manage plugins → Find installed plugins**. Put DioVERB on a Mixer effect insert receiving a vocal, synth, piano or guitar. It is an **effect, not an instrument**.
 
-No requiere instalación para su uso desde navegador.
+**Gatekeeper:** The GitHub Actions output is not Developer-ID signed/notarized. Confirm the binary came from the linked GitHub build before removing quarantine. On a user-level installation:
 
----
+    xattr -dr com.apple.quarantine "$HOME/Library/Audio/Plug-Ins/VST3/DioVERB.vst3"
+    codesign --force --deep --sign - "$HOME/Library/Audio/Plug-Ins/VST3/DioVERB.vst3"
 
-## Características Principales
+For a system-wide install, substitute /Library/Audio/Plug-Ins/VST3/DioVERB.vst3 and use sudo. These commands affect only DioVERB.
 
-### 1. Círculo Armónico Interactivo
+## How to use
 
-* Visualización dinámica basada en la escala seleccionada.
-* Iluminación automática de notas al seleccionar acordes.
-* Relación visual clara entre tonalidad y función armónica.
+1. Set the FL Studio tempo. In the DioVERB insert, choose **VOCAL** or **INSTRUMENT** and a bar length.
+2. Press **CAPTURE** and start playback in FL Studio so the phrase passes through the insert. Press **STOP CAPTURE** after the sound. A maximum of 12 seconds is buffered.
+3. Adjust **SIZE, TONE, WIDTH** and optional **TREMOLO / DEPTH**. Click **RENDER** to create and save the reverse effect.
+4. Press **PREVIEW**. The audio plays through the same insert; turn off DAW playback for a clean audition.
+5. Drag the green **DRAG WAV TO DAW** pad onto the FL Studio Playlist. Move it so its end lines up precisely with the vocal/chord onset.
+6. Alter parameters and click **RENDER** again to create a new WAV. Previous renders are retained in the export folder.
 
-### 2. Triadas y Séptimas con Grados
+The files are placed in the macOS Application Support folder under **DioVERB/Exports**. The plug-in does not delete older exports; remove ones you no longer need.
 
-* Construcción automática de acordes según la escala.
-* Identificación de acordes:
+## Build from source
 
-  * Mayores
-  * Menores
-  * Disminuidos
-* Representación con números romanos:
+Install Xcode command-line tools and CMake >= 3.22.
 
-  * I, ii, iii, IV, V, vi, vii°
-* Disponible en triadas y acordes con séptima.
+    cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+    cmake --build build --config Release --target DioVERBPlugin_VST3 dioverb_dsp_tests --parallel 3
+    ctest --test-dir build -C Release --output-on-failure
 
-### 3. Progresiones Urbanas Dinámicas
+Expected plugin: build/DioVERBPlugin_artefacts/Release/VST3/DioVERB.vst3
 
-Incluye sugerencias inspiradas en:
+You can run the portable reverse-reverb engine tests without JUCE:
 
-* Reggaeton
-* Afrobeat
-* Trap
-* Rap
-* Hiphop
+    cmake -S . -B build-core -DDIOVERB_BUILD_PLUGIN=OFF
+    cmake --build build-core
+    ctest --test-dir build-core --output-on-failure
 
-Las progresiones:
+## Engineering / limitations
 
-* Se generan dinámicamente.
-* No utilizan constantes fijas.
-* Respetan reglas reales de teoría musical.
-* Cambian al presionar el botón "Inspirar" o al recargar la aplicación.
+- Initial v0.1 engineering version, not yet validated by ear or through a full FL Studio regression session on user hardware.
+- Export is **offline** (not latency-compensated live preverb), because a lead-in effect must be placed before its source clip.
+- The preview uses the DAW audio callback; it may require the audio engine to be running even if the song transport is stopped.
+- Captures focus on the **first audible event** of the phrase (up to around one second); this helps create a clear swell, but is not automatic word segmentation.
+- Only 4/4 bar terminology is currently supported; there is no DAW timeline drag positioning API, so align the WAV's end manually.
+- macOS FL Studio should support the VST3 API, but native external drag acceptance may vary by host/version; the **SAVE WAV** control is provided as a reliable alternative.
+- This plugin is not signed or notarized by Apple. Commercial macOS distribution requires a proper Developer ID signing and notarization workflow.
+- DSP buffers are allocated offline except for preallocated capture buffers. No disk I/O or rendering on the realtime processBlock callback.
+- JUCE 9 is dual-licensed under AGPLv3 or commercial terms. Review JUCE legal terms before proprietary distribution.
 
-### 4. Detección de Estilo (Nivel 1)
+## Version
 
-Analiza la progresión construida por el usuario y estima:
-
-* Estilo aproximado
-* Porcentaje de coincidencia
-* Mood armónico
-
-### 5. Constructor de Progresiones
-
-* Agrega acordes mediante clic.
-* Visualiza la progresión en tiempo real.
-* Limpia la progresión.
-* Guarda la progresión como PDF mediante la función de impresión del navegador.
-* El PDF incluye:
-
-  * Nombre de la canción
-  * Escala seleccionada
-  * Estilo detectado
-  * Coincidencia
-  * Mood
-  * Progresión armónica
-
-### 6. Diseño Responsive y PWA
-
-* Adaptado a escritorio y dispositivos móviles.
-* Instalable como aplicación desde el navegador.
-* Funciona como Progressive Web App.
-
----
-
-## Tecnologías Utilizadas
-
-* HTML5
-* CSS3 (Responsive Design)
-* JavaScript Vanilla
-* Service Worker
-* Web App Manifest
-* GitHub Pages para despliegue
-
----
-
-## Instalación como PWA
-
-1. Acceder a:
-   [https://dioalexmusictools.github.io/navaja/](https://dioalexmusictools.github.io/navaja/)
-
-2. Abrir en Google Chrome o navegador compatible.
-
-3. Seleccionar "Instalar aplicación" desde el menú del navegador.
-
-4. La aplicación quedará instalada como app independiente.
-
----
-
-## Fundamento Teórico
-
-NAVAJA trabaja bajo los siguientes principios:
-
-* Escalas mayores diatónicas.
-* Construcción funcional de acordes.
-* Funciones armónicas:
-
-  * Tónica
-  * Subdominante
-  * Dominante
-* Progresiones comunes en música urbana contemporánea.
-* Generación aleatoria controlada que respeta coherencia tonal.
-
----
-
-## Público Objetivo
-
-* Productores urbanos.
-* Beatmakers.
-* Compositores.
-* Creadores que desean acelerar su flujo creativo.
-* Personas interesadas en aprender armonía aplicada.
-
----
-
-## Roadmap Futuro
-
-* Exportación MIDI.
-* Guardado de progresiones en LocalStorage.
-* Nivel avanzado de detección de estilo.
-* Soporte para escalas menores y modos.
-* Análisis armónico ampliado.
-
----
-
-## Autor
-
-Dioalex Music Tools
-
----
-
-## Licencia
-
-Todos los derechos reservados.
-
-No se tiene permitida la modificación y distribución de la app sin autorización expresa del autor.
+0.1.0 — first capture / reverse renderer / preview / drag VST3 for macOS.

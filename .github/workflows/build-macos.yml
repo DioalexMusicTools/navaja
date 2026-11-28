@@ -1,0 +1,47 @@
+name: DioVERB macOS VST3
+
+on:
+  push:
+    branches: ["dioverb-macos"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  universal-vst3:
+    name: macOS universal VST3
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure arm64 + Intel
+        run: >
+          cmake -S . -B build -G Xcode
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          -DCMAKE_BUILD_TYPE=Release
+      - name: Build effect and tests
+        run: cmake --build build --config Release --target DioVERBPlugin_VST3 dioverb_dsp_tests --parallel 3
+      - name: Test offline reverse engine
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Check universal binary
+        run: |
+          BUNDLE="build/DioVERBPlugin_artefacts/Release/VST3/DioVERB.vst3"
+          BIN="$BUNDLE/Contents/MacOS/DioVERB"
+          test -d "$BUNDLE"
+          test -f "$BIN"
+          lipo "$BIN" -verify_arch arm64 x86_64
+          file "$BIN"
+      - name: Package VST3
+        run: |
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/DioVERBPlugin_artefacts/Release/VST3/DioVERB.vst3 \
+            dist/DioVERB-macOS-universal-VST3.zip
+      - name: Upload compiled plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: DioVERB-macOS-universal-VST3
+          path: dist/DioVERB-macOS-universal-VST3.zip
+          if-no-files-found: error
