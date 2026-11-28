@@ -17,7 +17,7 @@ struct Parameters {
     std::array<float, 6> flux {{0.12f, 0.10f, 0.07f, 0.08f, 0.05f, 0.30f}};
     float magnitude = 1.0f;
     float mix = 1.0f;
-    float outputDb = 5.0f;
+    float outputDb = 0.0f; // neutral standalone DSP; JUCE public default is +5 dB
     float noiseColor = 0.35f;
     int noiseStyle = 0;             // 0 tape, 1 vinyl, 2 mains hum
     float wobbleRate = 12.0f;
