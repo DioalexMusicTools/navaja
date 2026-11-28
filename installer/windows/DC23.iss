@@ -10,6 +10,7 @@ DefaultDirName={commoncf64}\VST3
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 Uninstallable=yes
+UninstallFilesDir={autopf}\Dioalex Music Tools\DC-23
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -22,6 +23,11 @@ CloseApplications=yes
 
 [Files]
 Source: "payload\DC-23.vst3\*"; DestDir: "{app}\DC-23.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+Source: "Uninstall DC-23.cmd"; DestDir: "{autopf}\Dioalex Music Tools\DC-23"; Flags: ignoreversion
+
+[Icons]
+Name: "{commonprograms}\Dioalex Music Tools\Uninstall DC-23"; Filename: "{uninstallexe}"
 
 [Run]
 ; FL Studio will rescan its plugin list the next time it opens.
