@@ -273,7 +273,7 @@ void DioChordEditor::paint(juce::Graphics&g){
         juce::String desc;
         for(int c=0;c<4;++c){
             if(c)desc+="  •  ";
-            desc+=diochord::chordLabel(keyValue,isMinor,preset.chords[static_cast<size_t>(c)]);
+            desc+=juce::String(diochord::chordLabel(keyValue,isMinor,preset.chords[static_cast<size_t>(c)]).c_str());
         }
         g.drawFittedText(desc,x+52,285,236,17,juce::Justification::centredLeft,1);
     }
@@ -294,8 +294,8 @@ void DioChordEditor::paint(juce::Graphics&g){
         g.setColour(i==int(phase*4.0f)?cyan:violet);
         g.fillRoundedRectangle(juce::Rectangle<float>(float(x),378,290,3),1.0f);
         g.setColour(pale);font(g,23,true);
-        const juce::String name=diochord::chordLabel(tonic,minor,
-                                    preset.chords[static_cast<size_t>(i)]);
+        const juce::String name=juce::String(diochord::chordLabel(tonic,minor,
+                                    preset.chords[static_cast<size_t>(i)]).c_str());
         g.drawText(name,x+12,389,245,34,juce::Justification::centredLeft);
         g.setColour(muted);font(g,11,true);
         g.drawText("BAR "+juce::String(i+1),x+208,392,67,25,
