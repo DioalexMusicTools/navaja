@@ -22,7 +22,8 @@ struct Settings {
     float bpm = 120.0f;
     Mode mode = Mode::Vocal;
     Length length = Length::HalfBar;
-    float size = 0.50f;    // 0..1
+    float size = 0.50f;    // 0..1: room geometry
+    float decayMs = 2450.0f; // T60 decay time in milliseconds, 250..8000
     float tone = 0.58f;    // 0..1
     float width = 0.80f;   // 0..1
     Tremolo tremolo = Tremolo::Off;
@@ -65,6 +66,7 @@ inline float tremoloCyclesPerBeat(Tremolo t) noexcept {
 class Delay {
 public:
     explicit Delay(size_t frames) : samples(std::max<size_t>(frames, 1), 0.0f) {}
+    size_t frameCount() const noexcept { return samples.size(); }
     float readWrite(float input, float feedback) noexcept {
         const float old = samples[position];
         samples[position] = bounded(input + old * feedback, -4.0f, 4.0f);
@@ -86,10 +88,11 @@ private:
 
 class ReverbTank {
 public:
-    ReverbTank(double rate, int channel, float size, float color)
+    ReverbTank(double rate, int channel, float size, float color, float decayMs)
         : sampleRate(bounded(static_cast<float>(rate), 8000.0f, 192000.0f)),
-          decaySeconds(0.6f + 3.2f * bounded(size, 0.0f, 1.0f)),
+          decaySeconds(bounded(decayMs, 250.0f, 8000.0f) * 0.001f),
           damping(0.11f + 0.55f * bounded(color, 0.0f, 1.0f)),
+          sizeForBuffers(bounded(size, 0.0f, 1.0f)),
           combs {
             Delay(count(0.0297f + channel * 0.0009f)),
             Delay(count(0.0371f + channel * 0.0011f)),
@@ -103,11 +106,12 @@ public:
             Delay(count(0.0017f + channel * 0.0002f))
           }
     {
-        constexpr float original[] = {0.0297f, 0.0371f, 0.0411f, 0.0437f, 0.0539f, 0.0613f};
+        // Calibrate feedback with the actual delay length. Size changes the
+        // physical spacing/density; Decay independently controls the T60 tail.
         for (size_t i = 0; i < combs.size(); ++i) {
-            const float stretch = 0.7f + bounded(size, 0.0f, 1.0f) * 0.65f;
-            const float sec = original[i] * stretch + channel * 0.0005f;
-            feedback[i] = bounded(std::pow(0.001f, sec / decaySeconds), 0.05f, 0.94f);
+            const float delaySeconds = static_cast<float>(combs[i].frameCount()) / sampleRate;
+            feedback[i] = bounded(std::pow(0.001f, delaySeconds / decaySeconds),
+                                  0.05f, 0.986f);
         }
     }
 
@@ -131,7 +135,7 @@ private:
     }
     // Size of all delay lines chosen once during construction.
     const float sampleRate, decaySeconds, damping;
-    const float sizeForBuffers = 0.65f;
+    const float sizeForBuffers;
     std::array<float, 6> feedback {{0,0,0,0,0,0}};
     std::array<Delay, 6> combs;
     std::array<Delay, 2> allpasses;
@@ -173,8 +177,8 @@ inline Result render(const float* inputL, const float* inputR,
 
     const float size = bounded(settings.size, 0.0f, 1.0f);
     const float color = bounded(settings.tone, 0.0f, 1.0f);
-    ReverbTank tanks[2] = {ReverbTank(sr, 0, size, 1.0f - color),
-                            ReverbTank(sr, 1, size, 1.0f - color)};
+    ReverbTank tanks[2] = {ReverbTank(sr, 0, size, 1.0f - color, settings.decayMs),
+                            ReverbTank(sr, 1, size, 1.0f - color, settings.decayMs)};
     const float lowHz = 90.0f + (1.0f - color) * 130.0f;
     const float topHz = 2000.0f + color * 12500.0f;
     const float hiA = std::exp(-2.0f * pi * lowHz / sr);
