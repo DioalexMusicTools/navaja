@@ -248,9 +248,7 @@ void DioChordProcessor::stopPreview() {
 bool DioChordProcessor::exportMidiFile(const juce::File& file) {
     const auto seq=diochord::makeSequence(currentSettings());
     juce::MidiMessageSequence track;
-    track.addEvent(juce::MidiMessage::trackName("DioCHORD X - "+
-        juce::String(diochord::presets()[static_cast<size_t>(
-            std::clamp(int(raw("progression")),0,15))].name)));
+    // All chord note events are exported to a standard MIDI track.
     constexpr double ticks=960.0;
     // File is PPQ MIDI: the DAW project tempo determines playback speed.
     for(int i=0;i<seq.count;++i) {
