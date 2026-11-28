@@ -47,6 +47,8 @@ else
 fi
 cp dist/DC-23-v1.0.pkg "dmg-content/Install DC-23.pkg"
 cp installer/macos/INSTALL.txt "dmg-content/READ ME.txt"
+chmod +x "installer/macos/Uninstall DC-23.command"
+cp "installer/macos/Uninstall DC-23.command" "dmg-content/Uninstall DC-23.command"
 hdiutil create -volname "DC-23 v1.0" -srcfolder dmg-content -format UDZO -ov dist/DC-23-v1.0-macOS-universal.dmg
 hdiutil verify dist/DC-23-v1.0-macOS-universal.dmg
 if [[ "$NOTARIZED" == true ]]; then

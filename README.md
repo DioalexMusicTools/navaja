@@ -34,7 +34,7 @@ At 0ms Decay there is no reverb feedback; at 0ms magnetic Speed new dropouts are
 GitHub Actions, branch dc23-v1-release, workflow DC-23 v1.0 - macOS DMG and Windows EXE. Select a successful job and download:
 
 * DC-23-v1.0-macOS-DMG: macOS .dmg with graphical .pkg installer.
-* DC-23-v1.0-Windows-EXE: x64 Windows .exe setup, with uninstaller.
+* DC-23-v1.0-Windows-EXE: x64 Windows .exe setup; contains an Inno uninstaller and Uninstall DC-23.cmd.
 
 Artifacts arrive as ZIPs that must be extracted first.
 
@@ -49,11 +49,13 @@ For unsigned development builds only, its post-install script automatically exec
 
 For Developer-ID-signed builds, this script does NOT re-sign, preserving the original notarizable signature. It does not disable Gatekeeper globally.
 
+Uninstall from the same DMG with "Uninstall DC-23.command"; this removes only /Library/Audio/Plug-Ins/VST3/DC-23.vst3 and the package receipt, after confirmation and administrative approval.
+
 Important: unsigned Mac .dmg and .pkg still may be blocked by Gatekeeper before installation. Automatic local permissions fixes are not an alternative to Apple Developer ID signing and Apple notarization.
 
 ### Windows
 
-Close FL Studio and run DC-23-v1.0-Windows-x64-Setup.exe. It installs the complete bundle under C:\Program Files\Common Files\VST3\DC-23.vst3. Administrative approval is required. Use Windows Apps to uninstall.
+Close FL Studio and run DC-23-v1.0-Windows-x64-Setup.exe. It installs the complete bundle under C:\Program Files\Common Files\VST3\DC-23.vst3. Administrative approval is required. Uninstall from Windows Settings > Installed Apps, the Start menu shortcut or the installed Uninstall DC-23.cmd in Program Files > Dioalex Music Tools > DC-23.
 
 Open FL Studio → Options → Manage plugins → Find installed plugins. Insert DC-23 as an effect on a mixer channel.
 
@@ -99,3 +101,11 @@ Portable tests:
     cmake -S . -B build-core -DDC23_BUILD_PLUGIN=OFF
     cmake --build build-core
     ctest --test-dir build-core --output-on-failure
+
+## v1.0 UI refinement (version number unchanged)
+
+- Units are shown in the plugin and exposed as VST3 parameter labels: %, Hz, ms and dB, with at most two digits after the decimal point.
+- Rotary knobs stop at both limits. Circular drags do not jump to the other end at maximum or minimum.
+- The top-right gear opens Settings: Scale adjusts the entire window from 50% through 200%, default 100%, stored with the plugin's project state. About displays "DC-23 | Version 1.0 | Developed by Dioalex Music Tools".
+- The macOS DMG includes a standalone confirmed-uninstall script. Windows includes Inno Setup's native uninstaller, Start menu entry and Uninstall DC-23.cmd; it removes only DC-23.
+- UI updates retain version 1.0.0 and the current VST3 plugin identity.

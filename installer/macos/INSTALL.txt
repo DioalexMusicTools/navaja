@@ -9,6 +9,10 @@ DC-23 v1.0  |  Dioalex Music Tools
    codesign --force --deep --sign - "/Library/Audio/Plug-Ins/VST3/DC-23.vst3"
    A Developer-ID-signed copy is left untouched to preserve notarization.
 4. Restart FL Studio > Options > Manage plugins > Find installed plugins.
+To uninstall: close FL Studio, open this DMG, double-click
+"Uninstall DC-23.command" and confirm the exact DC-23 location.
+It requests administrator permission to remove ONLY DC-23.vst3
+and forgets the DC-23 installer receipt. Other plugins stay untouched.
 WARNING: a DMG/PKG without Developer ID signing and Apple notarization
 may be blocked by Gatekeeper. This is for testing, not public distribution.
 Do not disable macOS Gatekeeper globally. Public release requires certificates,
