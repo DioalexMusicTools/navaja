@@ -38,6 +38,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout DioVerbProcessor::makeParame
     layout.add(choice("tremolo", "Tremolo", {"Off", "1/8", "1/16", "1/32"}, 0));
     layout.add(floatParameter("depth", "Tremolo Depth", 0.0f, 100.0f, 34.0f));
     layout.add(floatParameter("output", "Output", -18.0f, 12.0f, 0.0f));
+    // Full reverb controls remain automatable and retained by the DAW project.
+    layout.add(floatParameter("reverbMix", "Reverb Mix", 0.0f, 100.0f, 100.0f));
+    layout.add(floatParameter("predelayMs", "Pre Delay (ms)", 0.0f, 250.0f, 20.0f));
+    layout.add(floatParameter("dampHighHz", "Damping High Frequency (Hz)", 1000.0f, 16000.0f, 6000.0f));
+    layout.add(floatParameter("highShelfDb", "Damping High Shelf (dB)", -18.0f, 6.0f, 0.0f));
+    layout.add(floatParameter("bassFreqHz", "Bass Frequency (Hz)", 60.0f, 1200.0f, 300.0f));
+    layout.add(floatParameter("bassMult", "Bass Decay Multiplier", 0.5f, 2.0f, 1.0f));
+    layout.add(floatParameter("attack", "Shape Attack", 0.0f, 100.0f, 50.0f));
+    layout.add(floatParameter("earlyDiff", "Early Diffusion", 0.0f, 100.0f, 80.0f));
+    layout.add(floatParameter("lateDiff", "Late Diffusion", 0.0f, 100.0f, 85.0f));
+    layout.add(floatParameter("modRateHz", "Reverb Mod Rate (Hz)", 0.1f, 8.0f, 0.70f));
+    layout.add(floatParameter("modDepth", "Reverb Mod Depth", 0.0f, 100.0f, 0.0f));
+    layout.add(floatParameter("highCutHz", "Reverb High Cut (Hz)", 1500.0f, 20000.0f, 20000.0f));
+    layout.add(floatParameter("lowCutHz", "Reverb Low Cut (Hz)", 20.0f, 2500.0f, 20.0f));
+    layout.add(choice("autoPan", "AutoPan Rate", {"Off", "1/2", "1/4", "1/8", "1/16"}, 0));
+    layout.add(floatParameter("panDepth", "AutoPan Depth", 0.0f, 100.0f, 0.0f));
     return layout;
 }
 
@@ -173,6 +189,22 @@ bool DioVerbProcessor::renderCaptured() {
         std::clamp(int(parameter("tremolo")), 0, 3));
     settings.tremoloDepth = parameter("depth") * 0.01f;
     settings.outputDb = parameter("output");
+    settings.reverbMix = parameter("reverbMix");
+    settings.predelayMs = parameter("predelayMs");
+    settings.dampHighHz = parameter("dampHighHz");
+    settings.highShelfDb = parameter("highShelfDb");
+    settings.bassFreqHz = parameter("bassFreqHz");
+    settings.bassMult = parameter("bassMult");
+    settings.attack = parameter("attack") * 0.01f;
+    settings.earlyDiff = parameter("earlyDiff") * 0.01f;
+    settings.lateDiff = parameter("lateDiff") * 0.01f;
+    settings.modRateHz = parameter("modRateHz");
+    settings.modDepth = parameter("modDepth") * 0.01f;
+    settings.highCutHz = parameter("highCutHz");
+    settings.lowCutHz = parameter("lowCutHz");
+    settings.autoPan = static_cast<dioverb::AutoPan>(
+        std::clamp(int(parameter("autoPan")), 0, 4));
+    settings.panDepth = parameter("panDepth") * 0.01f;
     auto rendered = dioverb::render(inputLeft.data(), inputRight.data(),
                                     static_cast<size_t>(frames), settings);
     if (!rendered.valid()) {

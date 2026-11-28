@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(DioVERB VERSION 0.2.0 LANGUAGES C CXX)
+project(DioVERB VERSION 0.3.0 LANGUAGES C CXX)
 
 option(DIOVERB_BUILD_PLUGIN "Build JUCE VST3" ON)
 enable_testing()

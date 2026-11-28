@@ -90,6 +90,69 @@ int main() {
     for(size_t i=0;i<withTrem.size();++i)
         difference+=std::abs(withTrem.left[i]-withPulse.left[i]);
     check(difference>0.001f,"tremolo changes sound");
+    // Full reverb controls and stereo AutoPan must change actual rendered audio.
+    p=dioverb::Settings{};
+    p.sampleRate=48000;
+    p.bpm=120;
+    p.length=dioverb::Length::HalfBar;
+    p.tremolo=dioverb::Tremolo::Off;
+    p.panDepth=0;
+    check(dioverb::autoPanCyclesPerBeat(dioverb::AutoPan::Half)==0.5f,
+          "AutoPan half-note transport mapping");
+    check(dioverb::autoPanCyclesPerBeat(dioverb::AutoPan::Quarter)==1.0f,
+          "AutoPan quarter-note transport mapping");
+    check(dioverb::autoPanCyclesPerBeat(dioverb::AutoPan::Eighth)==2.0f,
+          "AutoPan eighth-note transport mapping");
+    check(dioverb::autoPanCyclesPerBeat(dioverb::AutoPan::Sixteenth)==4.0f,
+          "AutoPan sixteenth-note transport mapping");
+
+    auto reference=dioverb::render(l.data(),r.data(),l.size(),p);
+    check(reference.valid(),"reference reverb valid");
+    auto changedSound=[&](const dioverb::Settings& edited, const char* reason) {
+        const auto effected=dioverb::render(l.data(),r.data(),l.size(),edited);
+        check(effected.valid() && effected.size()==reference.size(),"controlled render valid");
+        double delta=0.0;
+        for(size_t i=0;i<reference.size();++i) {
+            check(std::isfinite(effected.left[i]) && std::isfinite(effected.right[i]),
+                  "new DSP parameters remain finite");
+            delta+=std::abs(double(effected.left[i])-double(reference.left[i]));
+            delta+=std::abs(double(effected.right[i])-double(reference.right[i]));
+        }
+        check(delta>0.0001,reason);
+    };
+    {
+        auto pp=p; pp.autoPan=dioverb::AutoPan::Quarter; pp.panDepth=1;
+        changedSound(pp,"AutoPan 100% moves the stereo output");
+        pp=p; pp.autoPan=dioverb::AutoPan::Off; pp.panDepth=1;
+        const auto off=dioverb::render(l.data(),r.data(),l.size(),pp);
+        double delta=0.0;
+        for(size_t i=0;i<off.size();++i)
+            delta+=std::abs(double(off.left[i])-double(reference.left[i]));
+        check(delta<0.00001,"AutoPan OFF keeps sound unchanged even at 100% depth");
+        pp=p; pp.tremolo=dioverb::Tremolo::Sixteenth;
+        pp.tremoloDepth=0.7f; pp.autoPan=dioverb::AutoPan::Eighth; pp.panDepth=0.9f;
+        changedSound(pp,"Tremolo and AutoPan combine independently");
+        pp=p; pp.reverbMix=0;
+        changedSound(pp,"Reverb Mix blends dry reverse phrase");
+        pp=p; pp.predelayMs=150;
+        changedSound(pp,"Predelay affects reflections");
+        pp=p; pp.dampHighHz=1000;
+        changedSound(pp,"Damping high frequency affects reflections");
+        pp=p; pp.highShelfDb=-16;
+        changedSound(pp,"HighShelf changes high frequency tail");
+        pp=p; pp.bassFreqHz=900;pp.bassMult=1.9f;
+        changedSound(pp,"Bass feedback multiplier controls low-tail persistence");
+        pp=p; pp.attack=1;
+        changedSound(pp,"Attack affects the reversed swell envelope");
+        pp=p; pp.earlyDiff=0;
+        changedSound(pp,"Early diffusion affects reflection geometry");
+        pp=p; pp.lateDiff=0;
+        changedSound(pp,"Late diffusion affects reverb signal");
+        pp=p; pp.modDepth=0.9f;pp.modRateHz=1.8f;
+        changedSound(pp,"Modulation affects wet reflections");
+        pp=p; pp.highCutHz=3200;pp.lowCutHz=260;
+        changedSound(pp,"EQ cut filters affect wet sound");
+    }
     std::fill(l.begin(),l.end(),0);
     std::fill(r.begin(),r.end(),0);
     check(!dioverb::render(l.data(),r.data(),l.size(),p).valid(),"silence rejected");

@@ -1,10 +1,56 @@
-# DioVERB v0.2 — Reverse Reverb VST3 for macOS
+# DioVERB v0.3 — Reverse Reverb VST3 for macOS
 
 **DioVERB** is an original reverse-reverb creation plugin for FL Studio and other macOS VST3 hosts, produced for **Dioalex Music Tools**. It has a simple recording workflow designed for short vocal phrases, chord hits, guitars and synths.
 
 **Capture → Shape → Render → Preview → Drag WAV.**
 
 > Backverb by Yoshi Audio was a workflow reference. DioVERB is independently implemented, with original DSP, visuals, names and source code. It is not an XLN, Arturia or Yoshi Audio product. No proprietary presets or assets are embedded.
+
+
+## DioVERB v0.3 — Advanced Reverb & Tempo AutoPan
+
+This update is developed separately on branch **dioverb-v03-reverb-autopan**. Back up your working v0.2 VST3 and FL Studio projects before replacing the plugin. Existing IDs, Capture, Render, Preview, Drag WAV and Save WAV are preserved; new values default to compatible or neutral settings where possible. **The VST3 ID is unchanged.**
+
+### Independent reverb controls
+
+All knobs are connected to the offline DSP render, automatable through JUCE, and saved with the FL Studio project.
+
+| Group | Parameter | Range | Audio behavior |
+| --- | --- | --- | --- |
+| MASTER | Mix | 0–100% | Blend the original reversed phrase with the rendered reverse reverb; 100% keeps only the reverb |
+| MASTER | Predelay | 0–250 ms | Offset reverb excitation within the reverse timeline |
+| MASTER | Decay | 250–8000 ms | Independent reverberation T60 feedback time |
+| DAMPING | High Freq | 1–16 kHz | Upper damping coefficient of the comb tank |
+| DAMPING | High Shelf | -18 to +6 dB | High-frequency reflection energy |
+| DAMPING | Bass Freq | 60–1200 Hz | Transition for the bass-specific feedback loop |
+| DAMPING | Bass Mult | 0.50–2.00x | Bass decay relative to overall T60 |
+| SHAPE | Size | 0–100% | Space and reflection spacing |
+| SHAPE | Attack | 0–100% | Growth curve of the reverse swell |
+| SHAPE | Width | 0–100% | Stereo side amount |
+| DIFFUSION | Early | 0–100% | Early allpass coefficient |
+| DIFFUSION | Late | 0–100% | Diffuse tank blend |
+| DIFFUSION | Tone | 0–100% | Existing tone filter |
+| MOD | Rate | 0.1–8 Hz | Subtle time modulation of the reverb field |
+| MOD | Depth | 0–100% | Modulation blend; default 0% |
+| MOD | Tremolo | Off, 1/8, 1/16, 1/32 | Existing BPM-synced amplitude tremolo |
+| MOD | Trem Depth | 0–100% | Existing tremolo depth |
+| MOD | AutoPan | Off, 1/2, 1/4, 1/8, 1/16 | NEW BPM-synced left/right equal-power panning |
+| MOD | Pan Depth | 0–100% | NEW AutoPan amplitude (0% stays centered) |
+| EQ | High Cut | 1500–20000 Hz | Wet low-pass high cutoff |
+| EQ | Low Cut | 20–2500 Hz | Wet high-pass low cutoff |
+| EQ | Output | -18 to +12 dB | Final render level |
+
+AutoPan is laid out **directly beneath Tremolo**, with its own tempo rate and PAN DEPTH knob. Tremolo and AutoPan can operate simultaneously, and both work on the rendered WAV. The "Mix" control refers to mixing dry *reversed source* with the pre-reverb WAV, not a live signal insert blend.
+
+### Visual design
+
+The interface uses a blue-black background and luminous purple, blue and cyan accents with custom ring knobs, group outlines, six reverb sections and a large concentric Decay visualization. It takes broad color and organizational inspiration from a supplied screenshot of a vintage reverb interface, but is custom artwork for DioVERB and does not use its logos or assets.
+
+### Workflow
+
+Capture once, adjust any reverb or AutoPan control, and click **RENDER** to regenerate the WAV. Preview and Drag/Save WAV continue working. The renderer is offline by design: knob changes do not alter an already-exported WAV until it is rendered again. Length remains 1/4, 1/2, or 1 bar at the host BPM; it is distinct from Decay.
+
+Tests include independent tone/decay/diffusion/EQ parameter effects, AutoPan note rates, AutoPan OFF bypass, combined tremolo + AutoPan, output finite and original timing tests. **Compiled binaries still require audible and UI testing inside the user's FL Studio**.
 
 
 ## v0.2 — Independent Reverb Decay
@@ -26,7 +72,7 @@ Because reverse reverberation is an offline process, moving the Decay knob doesn
 
 ### Upgrade / safety
 
-This v0.2 build is developed on branch **dioverb-v02-decay**, separate from the working v0.1 branch **dioverb-macos**. Its internal plugin ID is unchanged so FL Studio recognizes the update. Existing v0.1 projects keep all existing parameter IDs; the new Decay defaults to 2450 ms. Make backups of important FL Studio sessions prior to upgrading. The native GitHub Actions build is universal (Apple Silicon + Intel) but **not notarized by Apple**, so the same local quarantine/signing procedure from v0.1 may be necessary.
+This v0.2 build is developed on branch **dioverb-v03-reverb-autopan**, separate from the working v0.1 branch **dioverb-macos**. Its internal plugin ID is unchanged so FL Studio recognizes the update. Existing v0.1 projects keep all existing parameter IDs; the new Decay defaults to 2450 ms. Make backups of important FL Studio sessions prior to upgrading. The native GitHub Actions build is universal (Apple Silicon + Intel) but **not notarized by Apple**, so the same local quarantine/signing procedure from v0.1 may be necessary.
 
 ## Features
 
@@ -98,6 +144,8 @@ You can run the portable reverse-reverb engine tests without JUCE:
 - JUCE 9 is dual-licensed under AGPLv3 or commercial terms. Review JUCE legal terms before proprietary distribution.
 
 ## Version
+
+0.3.0 — expanded reverb settings, tempo-synced AutoPan, violet/cyan interface.
 
 0.2.0 — independent reverb Decay (ms), responsive room Size, UI and regression tests.
 

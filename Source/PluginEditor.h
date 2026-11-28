@@ -26,30 +26,32 @@ private:
         void mouseDrag(const juce::MouseEvent&) override;
         bool armed = false;
     };
-
     using KnobLink = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ChoiceLink = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+
     void timerCallback() override;
     void setupKnob(juce::Slider&, const juce::String&,
-                   std::unique_ptr<KnobLink>&);
+                   std::unique_ptr<KnobLink>&, juce::Colour);
     void saveWavDialog();
     void paintWave(juce::Graphics&, juce::Rectangle<float>);
 
     DioVerbProcessor& processor;
     DioVerbLookAndFeel look;
-    juce::ComboBox mode, length, tremolo;
-    std::array<std::unique_ptr<ChoiceLink>, 3> choiceLinks;
-    juce::Slider size, decay, tone, width, depth, output;
-    std::array<std::unique_ptr<KnobLink>, 6> knobLinks;
-    juce::TextButton capture {"CAPTURE"};
-    juce::TextButton render {"RENDER"};
-    juce::TextButton preview {"PREVIEW"};
-    juce::TextButton save {"SAVE WAV"};
+    juce::ComboBox mode, length, tremolo, autoPan;
+    std::array<std::unique_ptr<ChoiceLink>, 4> choiceLinks;
+
+    juce::Slider mix, predelay, decay, highFreq, highShelf,
+                 bassFreq, bassMult, size, attack, width,
+                 early, late, tone, modRate, modDepth,
+                 tremDepth, panDepth, highCut, lowCut, output;
+    std::array<std::unique_ptr<KnobLink>, 20> knobLinks;
+
+    juce::TextButton capture {"CAPTURE"}, render {"RENDER"},
+                     preview {"PREVIEW"}, save {"SAVE WAV"};
     DragPad dragPad;
     std::unique_ptr<juce::FileChooser> chooser;
     juce::String currentStatus;
-    float runningPhase = 0.0f;
-    float meter = 0.0f;
+    float runningPhase = 0.0f, meter = 0.0f;
     bool renderPending = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DioVerbEditor)
