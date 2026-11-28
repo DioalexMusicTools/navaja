@@ -103,10 +103,14 @@ DioVerbEditor::DioVerbEditor(DioVerbProcessor& p)
     addAndMakeVisible(tremolo);
 
     setupKnob(size, "size", knobLinks[0]);
-    setupKnob(tone, "tone", knobLinks[1]);
-    setupKnob(width, "width", knobLinks[2]);
-    setupKnob(depth, "depth", knobLinks[3]);
-    setupKnob(output, "output", knobLinks[4]);
+    setupKnob(decay, "decayMs", knobLinks[1]);
+    setupKnob(tone, "tone", knobLinks[2]);
+    setupKnob(width, "width", knobLinks[3]);
+    setupKnob(depth, "depth", knobLinks[4]);
+    setupKnob(output, "output", knobLinks[5]);
+    size.setTooltip("Room size: controls reverb reflections and diffusion.");
+    decay.setTooltip("Decay time in milliseconds (T60): how long the reverb sustains. Use RENDER to hear adjustments.");
+    tone.setTooltip("Tone: brightness and damping of the reverb.");
 
     capture.onClick=[this] {
         if (processor.isCapturing()) processor.stopCapture();
@@ -153,6 +157,8 @@ void DioVerbEditor::setupKnob(
     s.textFromValueFunction = [id](double value) {
         if(id=="output")
             return (value>0.0?"+":"") + juce::String(value,1) + " dB";
+        if(id=="decayMs")
+            return juce::String(juce::roundToInt(value)) + " ms";
         return juce::String(juce::roundToInt(value)) + "%";
     };
     s.valueFromTextFunction=[](const juce::String& str) {
@@ -273,11 +279,18 @@ void DioVerbEditor::paint(juce::Graphics& g) {
 
     g.setColour(pane);
     g.fillRoundedRectangle(juce::Rectangle<float>(29,466,1032,125),11.0f);
-    constexpr const char* labels[]={"SIZE","TONE","WIDTH","DEPTH","OUTPUT"};
-    for(int i=0;i<5;++i)small(g,labels[i],66+i*185,566,126);
+    g.setColour(peach);
+    type(g,10.0f,true);
+    g.drawText("REVERB ENGINE", 45,468,373,14,juce::Justification::centredLeft);
+    g.setColour(muted);
+    g.drawText("MOVEMENT / OUTPUT", 479,468,285,14,juce::Justification::centredLeft);
+    g.setColour(border);
+    g.drawVerticalLine(458,484,582);
+    constexpr const char* labels[]={"SIZE","DECAY","TONE","WIDTH","DEPTH","OUTPUT"};
+    for(int i=0;i<6;++i)small(g,labels[i],44+i*143,566,110);
     g.setColour(muted);
     type(g,10.8f,true);
-    g.drawText("TREMOLO",935,476,118,18,juce::Justification::centred);
+    g.drawText("TREMOLO",917,477,136,17,juce::Justification::centred);
 
     const auto statusPanel=juce::Rectangle<float>(29,598,1032,67);
     g.setColour(juce::Colour(0xff161b1c));
@@ -299,18 +312,19 @@ void DioVerbEditor::paint(juce::Graphics& g) {
     }
     g.setColour(muted);
     type(g,10.0f);
-    g.drawText("© DIOALEX MUSIC TOOLS  •  ORIGINAL AUDIO ENGINE  •  v0.1",
+    g.drawText("© DIOALEX MUSIC TOOLS  •  ORIGINAL AUDIO ENGINE  •  v0.2",
                39,664,1005,14,juce::Justification::centredRight);
 }
 
 void DioVerbEditor::resized() {
     mode.setBounds(43,176,190,31);
     length.setBounds(268,176,190,31);
-    auto rows=std::array<juce::Slider*,5>{
-        &size,&tone,&width,&depth,&output
+    auto rows=std::array<juce::Slider*,6>{
+        &size,&decay,&tone,&width,&depth,&output
     };
-    for(int i=0;i<5;++i)rows[size_t(i)]->setBounds(68+i*185,473,126,92);
-    tremolo.setBounds(935,505,117,30);
+    for(int i=0;i<6;++i)
+        rows[size_t(i)]->setBounds(44+i*143,484,110,81);
+    tremolo.setBounds(913,507,141,30);
     // Action row above waveform, always accessible.
     capture.setBounds(43,400,204,49);
     render.setBounds(261,400,199,49);
